@@ -69,7 +69,13 @@ function render() {
 function rotator() {
   const el = $("#role"), art = $("#art");
   if (!el) return;
-  const set = (r) => { el.textContent = r; art.textContent = /^[aeiou]/i.test(r) ? "an" : "a"; };
+  const set = (r) => {
+    const { text, bare } = typeof r === "string" ? { text: r, bare: false } : r;
+    el.textContent = text;
+    art.hidden = bare;
+    art.textContent = /^[aeiou]/i.test(text) ? "an" : "a";
+    art.nextSibling.textContent = bare ? "" : " "; // the space after the article
+  };
   set(profile.roles[0]);
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   let i = 0;
