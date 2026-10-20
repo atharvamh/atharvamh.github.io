@@ -51,14 +51,14 @@ export const notes = [
     slug: "redis-internals",
     title: "Redis Internals",
     blurb: "Threading model, event loop, persistence, replication, clustering and eviction: how Redis stays fast without giving up correctness.",
-    date: "2026-09-18",
+    date: "2026-09-03",
     tags: ["redis", "systems design"],
   },
   {
     slug: "database-engineering",
     title: "Database Engineering",
     blurb: "Transactions, ACID, isolation, storage internals and indexing: the trade-offs every relational engine makes.",
-    date: "2026-09-18",
+    date: "2026-07-09",
     tags: ["databases", "systems design"],
   },
   {
