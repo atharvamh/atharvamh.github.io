@@ -1,0 +1,91 @@
+/*
+ * Re-skins Notion HTML exports (e.g. thought-experiments/attack-on-titan) with the site's look:
+ * dark ground, glass code blocks, Instrument Serif titles, Source Serif body, amber highlights.
+ * Loaded after the export's own <style>.
+ */
+:root:root:root {
+  color-scheme: dark;
+  --n-ink: #eceef6; --n-muted: #a3a9bd; --n-line: rgba(255, 255, 255, 0.1);
+  --n-amber: #ffb86b; --n-cyan: #4fe3d1; --n-pink: #ff7eb6;
+  --n-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --n-body: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+  --n-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+html:root { background: #07080d; scroll-behavior: smooth; }
+html:root body {
+  background: transparent; color: var(--n-ink); max-width: 780px; margin: 0 auto; padding: 28px 20px 96px;
+  font-family: var(--n-body); font-size: 18px; line-height: 1.7; -webkit-font-smoothing: antialiased;
+}
+::selection { background: rgba(139, 123, 255, 0.45); }
+.sans, .page, .page-body, body { font-family: var(--n-body) !important; }
+
+/* backdrop shared with the rest of the site */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 72% 22%, rgba(255, 126, 182, 0.12), transparent 70%),
+    radial-gradient(50% 40% at 12% 88%, rgba(255, 184, 107, 0.08), transparent 70%),
+    #07080d;
+}
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 90; pointer-events: none; opacity: 0.05; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.6s ease; }
+
+/* header: cover, icon, title */
+.page-cover-image {
+  display: block; width: 100%; height: clamp(150px, 26vw, 240px) !important; max-height: none !important; object-fit: cover;
+  border-radius: 20px; border: 1px solid var(--n-line); opacity: 0.8; filter: saturate(0.85) brightness(0.85);
+  -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent);
+}
+.page-header-icon-with-cover { margin: -34px 0 0 22px !important; position: relative; font-size: 56px; line-height: 1; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.6)); }
+.page-title { font-family: var(--n-display) !important; font-weight: 400 !important; font-size: clamp(40px, 8vw, 68px) !important; line-height: 1.02 !important; letter-spacing: -0.02em; color: var(--n-ink) !important; margin: 14px 0 10px !important; }
+.page-description { color: var(--n-muted); }
+
+/* headings */
+h2, h3, h2 strong, h3 strong { font-family: var(--n-display) !important; font-weight: 400 !important; letter-spacing: -0.01em; color: var(--n-ink) !important; }
+h2 { font-size: clamp(30px, 5vw, 40px) !important; line-height: 1.1 !important; margin: 2.2em 0 0.5em !important; padding-top: 0.6em; border-top: 1px solid var(--n-line); }
+.page-body > div:first-child h2 { border-top: 0; margin-top: 1.2em !important; }
+/* a heading right after a divider must not draw a second line */
+div:has(> hr) + div > h2 { border-top: 0; padding-top: 0; margin-top: 0.4em !important; }
+h3 { font-size: 26px !important; margin: 1.6em 0 0.4em !important; color: var(--n-pink) !important; }
+h2 mark, h3 mark { background: none !important; color: var(--n-amber) !important; }
+
+/* text */
+p, li { color: #d3d6e6; }
+strong { color: #fff; font-weight: 600; }
+em { color: #e4e6f2; }
+ul, ol { padding-left: 1.4em; }
+li::marker { color: var(--n-cyan); }
+.bulleted-list li { margin: 0.25em 0; }
+mark, .highlight-yellow { background: rgba(255, 184, 107, 0.16) !important; color: #ffd8aa !important; padding: 0.05em 0.35em; border-radius: 6px; }
+hr { border: 0; border-top: 1px solid var(--n-line); margin: 2.2em 0; }
+a, a.visited { color: var(--n-cyan); text-decoration: none; border-bottom: 1px solid rgba(79, 227, 209, 0.4); }
+a:hover { border-bottom-color: var(--n-cyan); }
+.link-to-page a, .link-to-page { border: 0; }
+.link-to-page a {
+  display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 12px;
+  font-family: var(--n-ui); font-size: 14px; background: rgba(12, 14, 24, 0.72); border: 1px solid var(--n-line);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); color: var(--n-ink); transition: border-color 0.25s;
+}
+.link-to-page a:hover { border-color: rgba(79, 227, 209, 0.55); }
+
+/* code / lineage trees: glass panel */
+pre, pre[class*="language-"], .code {
+  background: rgba(10, 12, 20, 0.78) !important; border: 1px solid var(--n-line); border-radius: 16px;
+  padding: 18px 22px !important; overflow-x: auto; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 30px 70px -45px #000;
+}
+pre code, code[class*="language-"], pre[class*="language-"] {
+  color: #d6d9ea !important; text-shadow: none !important; font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace !important; font-size: 13.5px; line-height: 1.65;
+}
+:not(pre) > code { background: rgba(255, 255, 255, 0.07) !important; color: #e7e9f4; padding: 0.1em 0.4em; border-radius: 6px; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 0.85em; }
+.token { color: inherit !important; background: none !important; }
+figure { margin: 1.6em 0; }
+
+/* tables / callouts if a future export has them */
+table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid var(--n-line); padding: 8px 12px; } th { background: rgba(255, 255, 255, 0.05); }
+.callout { background: rgba(12, 14, 24, 0.72) !important; border: 1px solid var(--n-line) !important; border-radius: 14px !important; }
+
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } html { scroll-behavior: auto; } }

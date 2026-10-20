@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#07080d">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/css/site.css">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<script type="importmap">{"imports":{"three":"/assets/vendor/three.module.min.js"}}</script>
+<title>Resume - Atharva Mhetar</title>
+<meta name="description" content="Resume of Atharva Mhetar.">
+<style>
+.cv{max-width:860px;margin:0 auto;width:calc(100% - 40px);padding:clamp(24px,5vw,56px);border:1px solid var(--line);border-radius:var(--radius);background:rgba(12,14,24,.74);backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);box-shadow:0 30px 80px -40px #000}
+.cv h1{font:400 clamp(44px,8vw,88px)/1 var(--display);letter-spacing:-.03em;margin:10px 0}
+.cv .contact-line{color:var(--muted);display:flex;gap:18px;flex-wrap:wrap;font-size:14px}
+.cv h2{font:500 12px var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--accent);margin:48px 0 18px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.cv .item{margin-bottom:24px}.cv .item h3{font:500 18px var(--sans)}.cv .item h3 span{color:var(--muted);font-weight:400}
+.cv .item time{font:12px var(--mono);color:var(--dim)}.cv ul{margin:8px 0 0;padding-left:20px;color:#cdd1e2}
+.cv .skills dt{font:12px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.1em;margin-top:12px}.cv .skills dd{margin:4px 0 0}
+</style>
+</head>
+<body data-hue="#b6f26b" data-hue2="#4fe3d1">
+<main class="page"><div class="cv">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Resume</span></nav>
+  <h1 id="n"></h1>
+  <div class="contact-line" id="c"></div>
+  <p id="sum" style="margin-top:22px;font-size:18px"></p>
+  <h2>Experience</h2><div id="exp"></div>
+  <h2>Education</h2><div id="edu"></div>
+  <h2>Skills</h2><dl class="skills" id="sk"></dl>
+  <h2>Certifications</h2><ul id="cert"></ul>
+</div></main>
+<script type="module">
+import { profile, resume } from "/assets/js/content.js";
+import { $, esc, boot, mountScene } from "/assets/js/ui.js";
+$("#n").textContent = profile.name;
+$("#c").innerHTML = [profile.email, ...profile.links.filter(l=>!l.href.startsWith("mailto")).map(l=>l.label)].map(x=>"<span>"+esc(x)+"</span>").join("");
+$("#sum").textContent = resume.summary;
+$("#exp").innerHTML = resume.experience.map(e=>`<div class="item"><h3>${esc(e.role)} <span>· ${esc(e.org)}</span></h3><time>${esc(e.when)}</time><ul>${e.points.map(p=>"<li>"+esc(p)+"</li>").join("")}</ul></div>`).join("");
+$("#edu").innerHTML = resume.education.map(e=>`<div class="item"><h3>${esc(e.what)} <span>· ${esc(e.org)}</span></h3><time>${esc(e.when)}</time></div>`).join("");
+$("#sk").innerHTML = Object.entries(resume.skills).map(([k,v])=>`<dt>${esc(k)}</dt><dd>${v.map(esc).join(" · ")}</dd>`).join("");
+$("#cert").innerHTML = resume.certifications.map(c=>"<li>"+esc(c)+"</li>").join("");
+boot();
+mountScene({ ambient: true, opacity: 0.25 }).then(a => a?.setHue("#b6f26b", "#4fe3d1"));
+requestAnimationFrame(() => document.documentElement.classList.add("ready"));
+</script>
+</body>
+</html>

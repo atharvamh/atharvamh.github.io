@@ -1,0 +1,18 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor settings
+.vscode/
+.idea/
+*.swp
+
+# Dependencies and build output, if you ever add tooling
+node_modules/
+dist/
+
+# Local drafts and private notes
+drafts/
+*.private.md
+.env

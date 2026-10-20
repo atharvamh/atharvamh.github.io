@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Places Visited - Kerala Trip</title>
+<style>
+  :root{
+    --leaf: #1B7A43;
+    --leaf-deep: #145C33;
+    --leaf-soft: #DCEFE2;
+    --turmeric: #EFA22E;
+    --turmeric-soft: #FCE8C8;
+    --chili: #E4572E;
+    --chili-soft: #FBDCD2;
+    --cream: #FFF8E8;
+    --ink: #2B2420;
+    --line: #EADFC9;
+  }
+  *{ box-sizing: border-box; }
+  html{ scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body{
+    margin:0;
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--sans, 'Helvetica Neue', Arial, sans-serif);
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .wrap{ max-width: 760px; margin: 0 auto; padding: 68px 20px 60px; }
+
+  header{ text-align:center; margin-bottom: 36px; }
+  header .eyebrow{
+    font-family: var(--sans, 'Trebuchet MS', Arial, sans-serif);
+    font-size: 13px; font-weight:700; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--chili); margin-bottom: 6px;
+  }
+  header h1{
+    font-family: var(--sans, 'Trebuchet MS', Arial, sans-serif);
+    font-size: 32px; color: var(--leaf-deep); margin: 0 0 8px 0;
+  }
+  header p.sub{ font-size: 14px; color: var(--ink); opacity: 0.65; margin:0; }
+
+  .progress{
+    display:flex; align-items:center; justify-content:center; gap:10px;
+    margin: 20px auto 0; font-size: 13px; color: var(--ink); opacity:0.7;
+  }
+  .progress .bar{
+    width: 160px; height: 6px; background: var(--line); border-radius: 999px; overflow:hidden;
+  }
+  .progress .fill{
+    height:100%; background: linear-gradient(90deg, var(--leaf), var(--turmeric), var(--chili));
+  }
+
+  .highlight{
+    background: var(--turmeric-soft);
+    border: 1px solid var(--turmeric);
+    border-radius: 14px;
+    padding: 16px 20px;
+    margin: 24px auto 0;
+    max-width: 560px;
+  }
+  .highlight h3{
+    font-family: var(--sans, 'Trebuchet MS', Arial, sans-serif);
+    font-size: 15px; margin: 0 0 6px 0; color: #8A5A17;
+  }
+  .highlight p{
+    font-size: 13px; line-height: 1.55; margin: 0; color: #5C4119;
+  }
+
+  .segment{ margin-top: 40px; }
+  .segment-title{
+    font-family: var(--sans, 'Trebuchet MS', Arial, sans-serif);
+    font-size: 18px; font-weight:700; color: var(--leaf-deep);
+    display:flex; align-items:center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .segment-title::after{
+    content:""; flex:1; height:1px; background: var(--line);
+  }
+
+  .stop-card{
+    background:#fff; border:1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; margin-bottom: 12px;
+    display:flex; gap: 14px; align-items:flex-start;
+    box-shadow: 0 1px 2px rgba(43,36,32,0.03);
+  }
+  .stop-num{
+    flex:none; width: 30px; height:30px; border-radius:50%;
+    background: var(--leaf-soft); color: var(--leaf-deep);
+    font-family: var(--sans, 'Trebuchet MS', Arial, sans-serif); font-weight:700; font-size: 14px;
+    display:flex; align-items:center; justify-content:center;
+    margin-top: 2px;
+  }
+  .stop-card:nth-of-type(3n+2) .stop-num{ background: var(--turmeric-soft); color: #8A5A17; }
+  .stop-card:nth-of-type(3n) .stop-num{ background: var(--chili-soft); color: #A6391A; }
+
+  .stop-body h3{
+    font-family: var(--sans, 'Trebuchet MS', Arial, sans-serif);
+    font-size: 16px; margin: 0 0 4px 0; color: var(--ink);
+  }
+  .stop-body p{ font-size: 13.5px; line-height:1.55; margin:0; color: var(--ink); opacity:0.78; }
+  .stop-body p.placeholder{ font-style: italic; opacity: 0.45; }
+  .stop-loc{
+    font-family: var(--sans, 'Helvetica Neue', Arial, sans-serif);
+    font-size: 12px; font-weight:600; color: var(--chili);
+    margin: 2px 0 6px 0; display:flex; align-items:center; gap:4px;
+  }
+
+  footer{
+    margin-top: 48px; text-align:center; font-size: 12.5px; color: var(--ink); opacity: 0.5;
+  }
+
+
+  .theme-toggle{
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    right: 12px;
+    z-index: 10;
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--line);
+    background: var(--cream);
+    color: var(--ink);
+    font-size: 18px; line-height: 1;
+    cursor: pointer;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 1px 4px rgba(43,36,32,0.15);
+  }
+  .theme-toggle:focus-visible{ outline: 2px solid var(--leaf); outline-offset: 2px; }
+  .back-link{
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 12px);
+    left: 12px;
+    z-index: 10;
+    height: 40px;
+    padding: 0 16px 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--cream);
+    color: var(--ink);
+    font-family: var(--sans, 'Trebuchet MS', Arial, sans-serif);
+    font-size: 13px; font-weight: 700;
+    text-decoration: none;
+    display: flex; align-items: center; gap: 6px;
+    box-shadow: 0 1px 4px rgba(43,36,32,0.15);
+  }
+  .back-link:hover{ border-color: var(--leaf); }
+  .back-link:focus-visible{ outline: 2px solid var(--leaf); outline-offset: 2px; }
+
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --cream:#201B15; --ink:#F3ECDF; --line:#3A3127;
+    }
+    :root:not([data-theme="light"]) .stop-card{ background:#2A241C; }
+    :root:not([data-theme="light"]) header h1,
+    :root:not([data-theme="light"]) .segment-title{ color:#7FD3A0; }
+  }
+  :root[data-theme="dark"]{
+    --cream:#201B15; --ink:#F3ECDF; --line:#3A3127;
+  }
+  :root[data-theme="dark"] .stop-card{ background:#2A241C; }
+  :root[data-theme="dark"] header h1,
+  :root[data-theme="dark"] .segment-title{ color:#7FD3A0; }
+</style>
+<script>try{var _t=localStorage.getItem('kerala-theme')||localStorage.getItem('places-theme');if(_t==='light'||_t==='dark')document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"/assets/vendor/three.module.min.js"}}</script>
+<link rel="stylesheet" href="/assets/css/trip-theme.css">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<meta name="theme-color" content="#07080d">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle" type="button" aria-label="Switch between light and dark mode" title="Switch light/dark">&#9788;</button>
+<div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/trips/">Trips</a><span class="sep" aria-hidden="true">/</span><a href="./">Kerala 2026</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Trip log</span></nav>
+
+  <header>
+    <div class="eyebrow">Kerala &middot; Oct 2026</div>
+    <h1>Places We've Visited</h1>
+    <p class="sub">The complete log, from Kochi to Fort Kochi and back home.</p>
+    <div class="progress">
+      <span>25 stops &middot; trip complete &#10003;</span>
+    </div>
+  </header>
+
+  <div class="highlight">
+    <h3>&#127796; Wildlife Week &mdash; Oct 2 to Oct 8</h3>
+    <p>Kerala's national parks, tiger reserves, and sanctuaries run free or exempted entry fees for Wildlife Week celebrations across multiple locations during this window. Worth asking at the counter &mdash; could apply to Periyar, Eravikulam, and others on this list.</p>
+  </div>
+
+  <div class="segment">
+    <div class="segment-title">Kochi to Munnar</div>
+
+    <div class="stop-card">
+      <div class="stop-num">1</div>
+      <div class="stop-body">
+        <h3>Athirapally Waterfall + Trek</h3>
+        <p class="stop-loc">&#128205; Near Chalakudy, Thrissur district &mdash; ~70 km from Kochi, a detour off the main Kochi-Munnar highway</p>
+        <p>Slightly demanding hike, beautiful views. Nice road on the way &mdash; palm tree forests, pineapple farms.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">2</div>
+      <div class="stop-body">
+        <h3>Lunch at Hotel Clay Oven</h3>
+        <p class="stop-loc">&#128205; Kothamangalam/Oonnukal, directly on the Kochi-Munnar highway (SH16)</p>
+        <p>Traditional sadhya meal &mdash; the pineapple curry (pineapple pachadi) was absolutely delicious.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">3</div>
+      <div class="stop-body">
+        <h3>Cheeyappara Waterfalls</h3>
+        <p class="stop-loc">&#128205; On NH85, between Neriamangalam and Adimali &mdash; ~44 km from Munnar</p>
+        <p>Sighting on the way.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="segment">
+    <div class="segment-title">Munnar</div>
+
+    <div class="stop-card">
+      <div class="stop-num">4</div>
+      <div class="stop-body">
+        <h3>Blossom Hydel Park</h3>
+        <p class="stop-loc">&#128205; ~3 km from Munnar town, towards the Kochi direction</p>
+        <p>A nice little garden, well maintained &mdash; good for a relaxing evening stroll. Entry ticket required.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">5</div>
+      <div class="stop-body">
+        <h3>Eravikulam National Park</h3>
+        <p class="stop-loc">&#128205; Rajamalai, ~15 km from Munnar town</p>
+        <p>Nilgiri Thar spotting. Nice short hike after the bus drop, beautiful tea garden views, cool and misty climate.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">6</div>
+      <div class="stop-body">
+        <h3>Government Botanical Gardens</h3>
+        <p class="stop-loc">&#128205; ~1&ndash;2 km from Munnar town, on the Munnar-Thekkady Road</p>
+        <p>Well maintained space, beautiful flowers, aesthetic and instagrammable. Small riverside walk. Music fountain shows daily at 7 PM.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="segment">
+    <div class="segment-title">Munnar to Thekkady (via Gap Road)</div>
+
+    <div class="stop-card">
+      <div class="stop-num">7</div>
+      <div class="stop-body">
+        <h3>Lockhart Factory</h3>
+        <p class="stop-loc">&#128205; ~9 km from Munnar, on the Munnar-Thekkady road via Devikulam</p>
+        <p>Goenka managed &mdash; skipped. Entry fee felt steep at &#8377;300, plus a wait for the tour.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">8</div>
+      <div class="stop-body">
+        <h3>Tea Gardens</h3>
+        <p class="stop-loc">&#128205; Along the Gap Road corridor, Munnar-Thekkady road</p>
+        <p>Beautiful scenic views, a walk through the tea gardens.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">9</div>
+      <div class="stop-body">
+        <h3>Chinnakanal Waterfalls</h3>
+        <p class="stop-loc">&#128205; ~15 km from Munnar, on the Munnar-Thekkady road (Gap Road)</p>
+        <p>Quick waterfall sighting along the way.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">10</div>
+      <div class="stop-body">
+        <h3>Anayirankal Dam</h3>
+        <p class="stop-loc">&#128205; ~22 km from Munnar, on the Munnar-Thekkady road</p>
+        <p>Better than Mattupetty Dam. One of Kerala's largest earthen dams, built in the 1960s as part of the Panniyar Hydroelectric Project &mdash; the name translates to "where elephants come down to drink," and elephants, gaur, and deer are still sometimes spotted on the banks.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="segment">
+    <div class="segment-title">Thekkady, Kumily Town</div>
+
+    <div class="stop-card">
+      <div class="stop-num">11</div>
+      <div class="stop-body">
+        <h3>Kalaripayattu Show, Navarasa Centre</h3>
+        <p class="stop-loc">&#128205; Kumily Thekkady Road, Kumily town</p>
+        <p>An excellent performance, 6&ndash;7 PM. Kalaripayattu is one of the world's oldest martial art forms (roughly 3,000 years old), drawing its movements from animals &mdash; lion, tiger, elephant, snake, crocodile. The show includes sword and fire sequences, a narrator explaining each move in English, and a photo opportunity with the performers afterward. Ranked #1 of 36 Tours &amp; Activities in Thekkady on Tripadvisor, 4.4&#9733; across 1,000+ reviews.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">12</div>
+      <div class="stop-body">
+        <h3>Spice Shopping, Kumily Market</h3>
+        <p class="stop-loc">&#128205; Kumily town</p>
+        <p>Picked up spices from the local market &mdash; cardamom, pepper, cinnamon, and more. Regular market prices here beat the tour-attached spice garden shops by a wide margin.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">13</div>
+      <div class="stop-body">
+        <h3>Periyar Tiger Reserve</h3>
+        <p>Got entry + bus ticket at 6 AM, bus departed 6:30 AM; 7:30 AM boating slot already sold out (slots very limited), so walked the grounds instead. Felt highly commercialized &mdash; not worth visiting without a pre-booked activity.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="segment">
+    <div class="segment-title">Thekkady to Alleppey (via Kottayam)</div>
+
+    <div class="stop-card">
+      <div class="stop-num">14</div>
+      <div class="stop-body">
+        <h3>Valanjanganam Waterfalls</h3>
+        <p class="stop-loc">&#128205; On the highway near Kuttikkanam, Idukki district</p>
+        <p>Quick stop &mdash; very refreshing vibe. Also known as Ninnumullippara, about 75 ft in height and usually mist-covered. Right on the road, so no detour needed &mdash; a natural break on a long drive.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">15</div>
+      <div class="stop-body">
+        <h3>Pineapple Farms</h3>
+        <p class="stop-loc">&#128205; Ghat road near Kanjirapally, Kottayam district</p>
+        <p>Seen along the way. Kerala's main pineapple belt is actually Ernakulam district (Vazhakulam) further north, but Kottayam district &mdash; including this Kanjirapally stretch &mdash; also grows it commercially.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">16</div>
+      <div class="stop-body">
+        <h3>Rubber Farms &mdash; Pazhoothadam Estate</h3>
+        <p class="stop-loc">&#128205; Parathode, Kanjirapally, Kottayam district</p>
+        <p>Seen on the way. Kottayam district has a genuine rubber-growing history &mdash; it's one of the earliest places in India where rubber was commercially cultivated.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="segment">
+    <div class="segment-title">Alleppey</div>
+
+    <div class="stop-card">
+      <div class="stop-num">17</div>
+      <div class="stop-body">
+        <h3>Lunch at Ramsar Village Restaurant</h3>
+        <p class="stop-loc">&#128205; Kumarakom/Muhamma area</p>
+        <p>Stopped on the way in &mdash; right in the Kumarakom belt, close to where the Alleppey stay is.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">18</div>
+      <div class="stop-body">
+        <h3>Chilling at the resort</h3>
+        <p>The 4 PM shikara ride got cancelled due to bad, windy weather &mdash; so did some swimming and chilling instead, followed by a nice coffee in the room. Headed out for dinner after, via Uber cabs.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">19</div>
+      <div class="stop-body">
+        <h3>Dinner at Havana Restaurant</h3>
+        <p>Headed out from the resort for this &mdash; amazing, tasty food. Ordered the Kareemen Fish Curry, Kalinji Fish Curry, Cheemen (Prawns), and the Kalinji Fish Fry &mdash; the fry came out as a whole fish, massive portion. Total bill for 4 people: just &#8377;2,450.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">20</div>
+      <div class="stop-body">
+        <h3>Shikara Ride to Pathiramanal Island</h3>
+        <p class="stop-loc">&#128205; Open Vembanad Lake, Muhamma panchayat</p>
+        <p>7&ndash;8 AM on Oct 6 morning &mdash; a nice, serene ride across the open lake, followed by a stroll through the island. Back at the resort by 8:05 AM. Pathiramanal (meaning "Sands of Midnight") is genuinely a migratory bird spot &mdash; home to roughly 90 local species and 50 migratory species, including visitors from as far as Siberia and Europe. The island is uninhabited and largely undisturbed, so it functions as a quiet roosting ground. Peak migratory season is Nov&ndash;Feb, so an October visit is right at the early edge of it &mdash; still a good chance of sightings, if not quite peak.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">21</div>
+      <div class="stop-body">
+        <h3>Alleppey Lighthouse</h3>
+        <p class="stop-loc">&#128205; Opposite Alleppey Beach</p>
+        <p>Checked out of the resort at 11 AM and headed here (open 8 AM&ndash;12 PM, 2 PM&ndash;5:30 PM) &mdash; climbed up for a view of Alleppey Beach and the old pier ruins below. Built in 1862, one of the oldest lighthouses on India's southwest coast, 30 m tall with a 100+ step wooden spiral staircase. It originally ran on a coconut-oil double-wick lamp (used until 1952) and only opened to the public in 2007. The pier below is around 137&ndash;150 years old and now in ruins &mdash; a relic of Alleppey's days as a major colonial-era trading port.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">22</div>
+      <div class="stop-body">
+        <h3>Chips Shopping, Alleppey Town</h3>
+        <p>Stocked up on Kerala papad and plenty of coconut-oil banana chips.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="segment">
+    <div class="segment-title">Fort Kochi</div>
+
+    <div class="stop-card">
+      <div class="stop-num">23</div>
+      <div class="stop-body">
+        <h3>Lunch at Fort House Restaurant</h3>
+        <p>Had lunch here around 2:30 PM while heading into Fort Kochi &mdash; rice and parotta with green mango fish curry and Kudampulli fish curry.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">24</div>
+      <div class="stop-body">
+        <h3>Fort Kochi Beach Walkway</h3>
+        <p>A post-lunch stroll &mdash; decent, not very amazing. Thunderstorms rolled in, so decided to head to Lulu Mall next instead. Kerala Folklore Museum was considered too, but it closes at 6 PM and would have meant arriving too late.</p>
+      </div>
+    </div>
+
+    <div class="stop-card">
+      <div class="stop-num">25</div>
+      <div class="stop-body">
+        <h3>Lulu Mall</h3>
+        <p>Spent the evening here, 6&ndash;10 PM, doing random things and having dinner before heading to the airport &mdash; trip complete.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    That's a wrap &mdash; 25 stops across Kochi, Munnar, Thekkady, Alleppey, and Fort Kochi.
+  </footer>
+
+</div>
+<script>
+(function(){
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+
+  function effective(){
+    var t = root.getAttribute('data-theme');
+    if (t === 'dark' || t === 'light') return t;
+    return (mq && mq.matches) ? 'dark' : 'light';
+  }
+  function paint(){
+    // Show the mode you would switch TO
+    btn.innerHTML = effective() === 'dark' ? '&#9788;' : '&#9790;';
+    btn.title = effective() === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  }
+
+  try {
+    var saved = localStorage.getItem('kerala-theme') || localStorage.getItem('places-theme');
+    if (saved === 'light' || saved === 'dark') root.setAttribute('data-theme', saved);
+  } catch (e) {}
+
+  btn.addEventListener('click', function(){
+    var next = effective() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('kerala-theme', next); } catch (e) {}
+    paint();
+  });
+
+  paint();
+})();
+</script>
+<script type="module" src="/assets/js/trip.js"></script>
+</body>
+</html>

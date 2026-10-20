@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Netflix: Behind the Play Button</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #141414;
+    --paper-raised: #1f1f1f;
+    --ink: #f2f2f0;
+    --ink-soft: #b3b3b3;
+    --ink-faint: #7a7a7a;
+    --rule: #333333;
+    --control: #9aa0a6;      /* control plane — quiet steel grey, the unglamorous plumbing */
+    --control-soft: #262626;
+    --data: #e50914;         /* data plane — the Netflix red, the part you actually watch */
+    --data-soft: #3a0d10;
+    --code-bg: #262626;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+  :root:not([data-theme="light"]) {
+    @media (prefers-color-scheme: dark) {
+      --paper: #141414;
+      --paper-raised: #1f1f1f;
+      --ink: #f2f2f0;
+      --ink-soft: #b3b3b3;
+      --ink-faint: #7a7a7a;
+      --rule: #333333;
+      --control: #9aa0a6;
+      --control-soft: #262626;
+      --data: #e50914;
+      --data-soft: #3a0d10;
+      --code-bg: #262626;
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #141414;
+    --paper-raised: #1f1f1f;
+    --ink: #f2f2f0;
+    --ink-soft: #b3b3b3;
+    --ink-faint: #7a7a7a;
+    --rule: #333333;
+    --control: #9aa0a6;
+    --control-soft: #262626;
+    --data: #e50914;
+    --data-soft: #3a0d10;
+    --code-bg: #262626;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+
+  :root[data-theme="light"] {
+    --paper: #f5f5f2;
+    --paper-raised: #ffffff;
+    --ink: #1a1a1a;
+    --ink-soft: #4a4a4a;
+    --ink-faint: #8a8a8a;
+    --rule: #ddd9d2;
+    --control: #45505c;
+    --control-soft: #e8eaec;
+    --data: #b8060f;
+    --data-soft: #fbe6e4;
+    --code-bg: #ece9e2;
+    --shadow: rgba(20, 20, 20, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', system-ui, sans-serif;
+    margin: 0;
+    line-height: 1.6;
+    font-size: 15.5px;
+  }
+  h1, h2, h3 {
+    font-family: 'Oswald', 'Arial Narrow', sans-serif;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  code, .mono, .step-label, nav a .num {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .tag {
+    font-family: 'IBM Plex Mono', monospace;
+    background: var(--code-bg);
+    padding: 0.1em 0.5em;
+    border-radius: 3px;
+    font-size: 0.9em;
+    white-space: nowrap;
+  }
+  a { color: var(--control); }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 290px minmax(0, 1fr);
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+
+  /* ---- Masthead ---- */
+  .masthead {
+    grid-column: 1 / -1;
+    padding: 3rem 2rem 2rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .masthead .kicker {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    color: var(--ink-faint);
+    margin-bottom: 0.6rem;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+  .masthead .kicker .bar {
+    display: inline-block;
+    width: 22px;
+    height: 4px;
+    background: var(--data);
+    border-radius: 2px;
+  }
+  .masthead h1 {
+    font-family: 'Bebas Neue', 'Oswald', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+    font-size: clamp(1.8rem, 6.2vw, 3.6rem);
+    white-space: nowrap;
+    margin: 0 0 0.7rem;
+  }
+  .masthead p.dek {
+    max-width: 62ch;
+    color: var(--ink-soft);
+    font-size: 0.98rem;
+    margin: 0;
+  }
+
+  /* ---- Sidebar TOC ---- */
+  .toc {
+    padding: 2rem 1.25rem 2rem 2rem;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+  }
+  .toc .status {
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    margin-bottom: 1.1rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  .toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 1px solid var(--rule);
+  }
+  .toc li { position: relative; }
+  .toc a {
+    display: block;
+    padding: 0.5rem 0 0.5rem 1rem;
+    margin-left: -1px;
+    border-left: 2px solid transparent;
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toc a.done { color: var(--ink); border-left-color: var(--control); }
+  .toc a.pending {
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+  .toc a:hover.done { color: var(--control); }
+  .toc a .num { color: var(--ink-faint); margin-right: 0.4em; font-size: 0.85em; }
+
+  /* ---- Main content ---- */
+  main { padding: 1rem 2.5rem 6rem; min-width: 0; }
+  section.chapter { padding-top: 2.5rem; margin-top: 1rem; max-width: 74ch; }
+  section.chapter:first-of-type { padding-top: 1rem; margin-top: 0; }
+  section.chapter + section.chapter { border-top: 1px solid var(--rule); }
+
+  .chapter .eyebrow {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+    margin-bottom: 0.5rem;
+  }
+  .chapter h2 { font-size: 2.1rem; margin: 0 0 1rem; }
+  .chapter h3 { font-size: 1.4rem; margin: 1.8rem 0 0.6rem; }
+  .chapter p.subhead {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    color: var(--ink-faint);
+    margin: 1.6rem 0 0.6rem;
+    text-transform: uppercase;
+  }
+  .chapter p { margin: 0 0 1.1rem; color: var(--ink); }
+  .chapter ul, .chapter ol.steps { margin: 0 0 1.2rem; padding-left: 1.3rem; }
+  .chapter li { margin-bottom: 0.5rem; }
+
+  .plane-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    padding: 0.15em 0.6em;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .plane-tag.control { background: var(--control-soft); color: var(--control); }
+  .plane-tag.data { background: var(--data-soft); color: var(--data); }
+
+  .callout {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--control);
+    border-radius: 4px;
+    padding: 1rem 1.3rem;
+    margin: 1.4rem 0;
+    box-shadow: 0 1px 2px var(--shadow);
+  }
+  .callout.discuss { border-left-color: var(--data); }
+  .callout .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    text-transform: none;
+    color: var(--ink-faint);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout ul:last-child { margin-bottom: 0; }
+
+  .evolution {
+    margin: 1.8rem 0;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .evolution .evolution-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    padding: 0.7rem 1.1rem;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+  }
+  .evolution-grid { display: grid; grid-template-columns: 1fr 1fr; }
+  .evolution-grid .before, .evolution-grid .after {
+    padding: 1rem 1.2rem;
+  }
+  .evolution-grid .before {
+    background: var(--paper);
+    border-right: 1px solid var(--rule);
+  }
+  .evolution-grid .after { background: var(--paper-raised); }
+  .evolution-grid .stage-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.7rem;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  .evolution-grid .before .stage-label { color: var(--ink-faint); }
+  .evolution-grid .after .stage-label { color: var(--data); }
+  .evolution-grid p { font-size: 0.92rem; margin: 0; }
+  .evolution-grid ul { font-size: 0.92rem; margin: 0; padding-left: 1.1rem; }
+  .evolution-grid ul li { margin-bottom: 0.35rem; }
+  .evolution-grid ul li:last-child { margin-bottom: 0; }
+  @media (max-width: 620px) {
+    .evolution-grid { grid-template-columns: 1fr; }
+    .evolution-grid .before { border-right: none; border-bottom: 1px solid var(--rule); }
+  }
+  .evolution-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .evolution-grid.three .stage2 {
+    background: var(--paper);
+    border-right: 1px solid var(--rule);
+  }
+  .evolution-grid.three .stage2 .stage-label { color: var(--ink-faint); }
+  @media (max-width: 780px) {
+    .evolution-grid.three { grid-template-columns: 1fr; }
+    .evolution-grid.three .stage2 { border-right: none; border-bottom: 1px solid var(--rule); }
+  }
+
+  .diagram-wrap {
+    margin: 1.8rem 0;
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.2rem;
+    overflow-x: auto;
+  }
+  .diagram-wrap svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  .diagram-caption {
+    font-size: 0.82rem;
+    color: var(--ink-faint);
+    text-align: center;
+    margin-top: 0.6rem;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .refs {
+    margin-top: 2.2rem;
+    padding-top: 1.2rem;
+    border-top: 1px dashed var(--rule);
+  }
+  .refs .label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--ink-faint);
+    margin-bottom: 0.6rem;
+  }
+  .refs ol { margin: 0; padding-left: 1.2rem; }
+  .refs li { font-size: 0.9rem; color: var(--ink-soft); margin-bottom: 0.4rem; }
+  .refs .src-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--control);
+    border: 1px solid var(--control-soft);
+    background: var(--control-soft);
+    padding: 0.05em 0.4em;
+    border-radius: 3px;
+    margin-right: 0.4em;
+  }
+
+  .pending-block {
+    max-width: 74ch;
+    padding: 2.5rem 0 1rem;
+    color: var(--ink-faint);
+    font-style: italic;
+    font-size: 0.95rem;
+  }
+
+  code.inline {
+    background: var(--code-bg);
+    padding: 0.1em 0.4em;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+
+  .field-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.4rem 0;
+    font-size: 0.88rem;
+  }
+  .field-table th {
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    font-weight: 500;
+    padding: 0.5rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .field-table td {
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    color: var(--ink);
+  }
+  .field-table td:first-child {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--data);
+    white-space: normal;
+    min-width: 8em;
+  }
+  .field-table tr:last-child td { border-bottom: none; }
+
+  .log-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4em;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--data);
+    background: var(--data-soft);
+    border: 1px solid var(--data);
+    border-radius: 5px;
+    padding: 0.5rem 0.9rem;
+    cursor: pointer;
+    margin: 0.4rem 0 1.4rem;
+  }
+  .log-trigger:hover { opacity: 0.85; }
+
+  .log-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1rem;
+  }
+  .log-modal-backdrop.open { display: flex; }
+  .log-modal {
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    max-width: 1200px;
+    width: 100%;
+    max-height: 92vh;
+    overflow-y: auto;
+    padding: 1.6rem 1.8rem;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .log-modal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.6rem;
+    align-items: start;
+  }
+  .log-col-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.6rem;
+  }
+  .log-left { max-height: 68vh; overflow-y: auto; padding-right: 0.5rem; }
+  .log-right { max-height: 68vh; overflow-y: auto; }
+  .jkey { color: var(--data); font-weight: 500; }
+  @media (max-width: 800px) {
+    .log-modal-grid { grid-template-columns: 1fr; }
+  }
+  .log-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.4rem;
+  }
+  .log-modal-header h4 {
+    font-family: 'Oswald', sans-serif;
+    font-size: 1.15rem;
+    margin: 0;
+    color: var(--ink);
+  }
+  .log-modal-close {
+    background: none;
+    border: 1px solid var(--rule);
+    color: var(--ink-faint);
+    border-radius: 5px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.8rem;
+    padding: 0.25rem 0.6rem;
+    cursor: pointer;
+  }
+  .log-modal-sub {
+    font-size: 0.85rem;
+    color: var(--ink-faint);
+    margin: 0 0 1.2rem;
+  }
+  .log-field {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .log-field:last-child { border-bottom: none; }
+  .log-field code {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.82rem;
+    color: var(--data);
+    background: var(--code-bg);
+    padding: 0.2em 0.5em;
+    border-radius: 3px;
+    display: inline-block;
+    width: fit-content;
+  }
+  .log-field p {
+    font-size: 0.88rem;
+    color: var(--ink);
+    margin: 0.3rem 0 0;
+  }
+  .log-raw pre {
+    margin: 0;
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 0.9rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    .toc {
+      position: static;
+      height: auto;
+      padding: 1.2rem 1.5rem;
+      border-bottom: 1px solid var(--rule);
+    }
+    .toc ol { display: flex; flex-wrap: wrap; gap: 0.2rem 1rem; border-left: none; }
+    .toc a { padding: 0.2rem 0; border-left: none; }
+    main { padding: 1rem 1.3rem 4rem; }
+  }
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="shell">
+
+<div class="masthead">
+    <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Netflix architecture</span></nav>
+    <div class="kicker"><span class="bar"></span>system design field notes</div>
+    <h1>Netflix: Behind the Play Button</h1>
+    <p class="dek">Tracing how Netflix's streaming architecture actually holds together — grounded in Netflix's own engineering writing wherever it exists.</p>
+  </div>
+
+  <nav class="toc">
+    <ol>
+      <li><a href="#overview" class="done"><span class="num">01</span>System overview</a></li>
+      <li><a href="#open-connect" class="done"><span class="num">02</span>Open Connect (the CDN)</a></li>
+      <li><a href="#playback-flow" class="done"><span class="num">03</span>Client → playback flow</a></li>
+      <li><a href="#encoding" class="done"><span class="num">04</span>Encoding pipeline</a></li>
+      <li><a href="#microservices" class="done"><span class="num">05</span>Backend microservices</a></li>
+      <li><a href="#data-platforms" class="done"><span class="num">06</span>Data &amp; streaming platforms</a></li>
+      <li><a href="#resilience" class="done"><span class="num">07</span>Resilience engineering</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ============ CHAPTER 1 ============ -->
+    <section class="chapter" id="overview">
+      <span class="eyebrow">01 &middot; foundations</span>
+      <h2>The one split everything else hangs off</h2>
+
+      <p>Every piece of Netflix's architecture sorts into one of two buckets, and the sorting rule is simple: <strong>does this happen before you press play, or after?</strong></p>
+
+      <p>Before play — browsing the catalog, search, recommendations, account and billing, deciding whether you're licensed to watch a given title in your region — all of it runs as ordinary backend microservices on AWS. Netflix calls this the <span class="plane-tag control">control plane</span>. After play — the actual video bytes moving from a server to your device — travels over Open Connect, Netflix's own purpose-built content delivery network. That's the <span class="plane-tag data">data plane</span>.</p>
+
+      <p>This isn't just a naming convenience, it's a real engineering decision with a real reason: the two halves have opposite requirements.</p>
+
+      <ul>
+        <li>The <span class="plane-tag control">control plane</span> needs strong consistency and correctness — you cannot let two people get charged twice, or serve a title in a country it isn't licensed in. It runs at comparatively modest bandwidth (API calls, metadata, JSON), so it can afford the coordination overhead that consistency costs.</li>
+        <li>The <span class="plane-tag data">data plane</span> needs to move enormous throughput — video is bytes at a scale API traffic never approaches — across a huge, geographically distributed footprint. It can tolerate eventual consistency (a cache appliance being a few hours stale on its content catalog is fine) in exchange for raw speed and locality.</li>
+      </ul>
+
+      <p>Trying to satisfy both sets of requirements with one system would mean compromising on both. Splitting them lets each side over-optimize for what it actually needs.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 720 260" xmlns="http://www.w3.org/2000/svg">
+          <rect x="20" y="20" width="290" height="220" rx="8" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.5"/>
+          <text x="165" y="45" text-anchor="middle" fill="var(--control)" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600">CONTROL PLANE — AWS</text>
+          <text x="165" y="68" text-anchor="middle" fill="var(--ink-soft)" font-family="Inter, sans-serif" font-size="12">before you press play</text>
+          <g font-family="Inter, sans-serif" font-size="12.5" fill="var(--ink)">
+            <text x="45" y="100">Auth &amp; account</text>
+            <text x="45" y="128">Catalog &amp; search</text>
+            <text x="45" y="156">Personalization</text>
+            <text x="45" y="184">Licensing checks</text>
+            <text x="45" y="212">Playback authorization</text>
+          </g>
+
+          <rect x="410" y="20" width="290" height="220" rx="8" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.5"/>
+          <text x="555" y="45" text-anchor="middle" fill="var(--data)" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600">DATA PLANE — OPEN CONNECT</text>
+          <text x="555" y="68" text-anchor="middle" fill="var(--ink-soft)" font-family="Inter, sans-serif" font-size="12">after you press play</text>
+          <g font-family="Inter, sans-serif" font-size="12.5" fill="var(--ink)">
+            <text x="435" y="100">OCA cache appliances</text>
+            <text x="435" y="128">ISP-embedded &amp; IXP nodes</text>
+            <text x="435" y="156">Nightly predictive fill</text>
+            <text x="435" y="184">HTTP/HTTPS byte serving</text>
+            <text x="435" y="212">No user data stored here</text>
+          </g>
+
+          <path d="M310 130 H408" stroke="var(--ink-faint)" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+          <text x="359" y="120" text-anchor="middle" fill="var(--ink-faint)" font-family="IBM Plex Mono, monospace" font-size="10.5">handoff</text>
+          <defs>
+            <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"/>
+            </marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">the handoff: control plane authorizes, data plane delivers</div>
+      </div>
+
+      <h3>A bit of history worth knowing</h3>
+      <p>This split wasn't the original design. Worth remembering first: in 2008, Netflix was still primarily a DVD-by-mail rental company — founded in 1997 on exactly that model, with streaming only having launched the year before, in January 2007, as a small addition rather than the core business. Mail-order DVD fulfillment was still what actually made Netflix money at the time.</p>
+
+      <p>Netflix's own account: in August 2008, a "major database corruption" meant the company "could not ship DVDs to our members" for three days — and that this was the moment they realized they had to move away from "vertically scaled single points of failure, like relational databases in our datacenter," toward horizontally scalable, distributed systems in the cloud. The resulting migration to AWS took seven years, finishing in January 2016.</p>
+
+      <div class="callout">
+        <span class="label">more specific detail — widely reported, not Netflix's own official wording</span>
+        <p>Widely reported, not from Netflix's own statement: the database was a primary <strong>Oracle</strong> cluster, corrupted by a <strong>disk-array firmware update</strong>. Netflix's own cloud leadership reportedly reacted by wanting to "rethink this completely, go back to first principles" — the actual origin of the failure-embracing philosophy behind Chapter 7's Chaos Monkey and ChAP.</p>
+      </div>
+
+      <p>Control-plane services run as replicated VMs across three AWS regions:</p>
+      <ul>
+        <li><strong>US-East-1</strong> (Virginia)</li>
+        <li><strong>US-West-2</strong> (Oregon)</li>
+        <li><strong>EU-West-1</strong> (Ireland)</li>
+      </ul>
+      <p>Netflix has shown live traffic steering between all three during a real incident. A current AWS case study puts the count at <strong>four</strong> regions today, fourth unnamed — treat "three" as dated, not current.</p>
+      <p>Open Connect began separately in 2011 (reasons in the next chapter) — no source ties it directly to the 2008 incident, despite the two often being told as one story.</p>
+
+      <div class="refs">
+        <span class="label">references</span>
+        <ol>
+          <li><span class="src-tag">official</span>Netflix Open Connect, <a href="https://openconnect.netflix.com/Open-Connect-Overview.pdf" target="_blank" rel="noopener">"Open Connect Overview"</a> (PDF) — the split between control plane and data plane, and the stated reasoning for building a custom CDN, is described directly in this document.</li>
+          <li><span class="src-tag">academic</span>N. Basiri et al., <a href="https://arxiv.org/pdf/1702.05843" target="_blank" rel="noopener">"Chaos Engineering"</a>, arXiv:1702.05843 — includes a sidebar written by Netflix engineers describing the control plane / Open Connect split, and control-plane services running replicated across three AWS regions.</li>
+          <li><span class="src-tag">official</span>Y. Izrailevsky, <a href="https://about.netflix.com/en/news/completing-the-netflix-cloud-migration" target="_blank" rel="noopener">"Completing the Netflix Cloud Migration"</a>, About Netflix, 2016 — source for the August 2008 database corruption incident, the three-day DVD-shipping outage, and the seven-year AWS migration timeline.</li>
+          <li><span class="src-tag">press</span><a href="https://increment.com/cloud/case-studies-in-cloud-migration/" target="_blank" rel="noopener">"Case studies in cloud migration: Netflix, Pinterest, and Symantec"</a>, Increment — based on direct interviews with Netflix cloud engineering leadership; source for the Oracle/disk-array-firmware detail and the "first principles" quote.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/global-cloud-active-active-and-beyond-a0fdfa2c3a45" target="_blank" rel="noopener">"Global Cloud — Active-Active and Beyond"</a>, 2017 — source for naming US-East-1, US-West-2, and EU-West-1 as the three regions, and the real traffic-steering example between them.</li>
+          <li><span class="src-tag">official</span>AWS, <a href="https://aws.amazon.com/solutions/case-studies/netflix/" target="_blank" rel="noopener">"Netflix on AWS"</a> case study — current source stating Netflix now operates across four AWS regions, without naming the fourth.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 2 ============ -->
+    <section class="chapter" id="open-connect">
+      <span class="eyebrow">02 &middot; data plane</span>
+      <h2>Open Connect: proactive caching, not reactive</h2>
+
+      <p>Most CDNs are demand-driven: a request comes in, if the edge doesn't have the content it's fetched from origin and cached for next time. Open Connect flips that. Netflix can predict with high confidence what will be watched, where, and when — so instead of waiting for cache misses, it <strong>pushes</strong> content out to edge appliances ahead of demand, mostly during off-peak overnight windows. That's the core design bet the Open Connect team describes for the whole program.</p>
+
+      <h3>The appliance: OCA</h3>
+      <p>The building block is the <span class="tag">Open Connect Appliance</span> (<span class="tag">OCA</span>) — purpose-built servers whose only job is storing encoded, DRM-encrypted video/image files and serving them over HTTP/HTTPS (Chapter 3 covers the encryption itself). Deliberately, OCAs hold <em>no</em> user data: no viewing history, no DRM state, no account info. That separation matters architecturally — it means the data plane can be treated as disposable, replaceable, cache-only infrastructure, while every piece of information that's actually sensitive stays in the control plane where the consistency and access-control guarantees live.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 760 380" xmlns="http://www.w3.org/2000/svg">
+          <rect x="30" y="20" width="700" height="340" rx="10" fill="none" stroke="var(--data)" stroke-width="1.4" stroke-dasharray="6 4"/>
+          <text x="55" y="42" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--data)">Open Connect Appliance (OCA)</text>
+
+          <text x="55" y="72" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-faint)">HARDWARE</text>
+          <rect x="50" y="80" width="200" height="50" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="150" y="102" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Redundant storage drives</text>
+          <text x="150" y="117" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink-faint)">one fails &rarr; auto-disabled, keeps serving</text>
+
+          <rect x="270" y="80" width="200" height="50" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="370" y="102" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Redundant power supplies</text>
+          <text x="370" y="117" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink-faint)">field-replaceable</text>
+
+          <rect x="490" y="80" width="200" height="50" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="590" y="102" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Redundant network ports</text>
+          <text x="590" y="117" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink-faint)">high-throughput (up to ~200Gbps)</text>
+
+          <text x="55" y="158" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-faint)">SOFTWARE</text>
+          <rect x="50" y="166" width="200" height="46" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.1"/>
+          <text x="150" y="188" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--control)">FreeBSD</text>
+          <text x="150" y="202" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink)">operating system</text>
+
+          <rect x="270" y="166" width="200" height="46" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.1"/>
+          <text x="370" y="188" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--control)">freenginx</text>
+          <text x="370" y="202" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink)">serves content over HTTP/HTTPS</text>
+
+          <rect x="490" y="166" width="200" height="46" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.1"/>
+          <text x="590" y="188" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--control)">BIRD</text>
+          <text x="590" y="202" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink)">BGP routing daemon</text>
+
+          <text x="55" y="242" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-faint)">WHAT IT STORES</text>
+          <rect x="50" y="250" width="320" height="46" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.1"/>
+          <text x="210" y="272" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Segmented video, across the full bitrate ladder</text>
+          <text x="210" y="286" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink-faint)">chapters 3&ndash;4 &mdash; many small chunks, not one file</text>
+
+          <rect x="390" y="250" width="300" height="46" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="540" y="272" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Image files</text>
+          <text x="540" y="286" text-anchor="middle" font-family="Inter, sans-serif" font-size="9" fill="var(--ink-faint)">confirmed to exist; exact content not detailed by Netflix</text>
+
+          <text x="55" y="326" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-faint)">WHAT IT DELIBERATELY DOES NOT HOLD</text>
+          <rect x="50" y="334" width="640" height="26" rx="6" fill="none" stroke="var(--ink-faint)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="370" y="351" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-faint)">No viewing history &middot; no DRM state &middot; no account info</text>
+        </svg>
+        <div class="diagram-caption">OCA internals, per Netflix's own Open Connect Appliances documentation</div>
+      </div>
+
+      <p>The network runs thousands of OCAs deployed across significant Netflix markets worldwide — and that global spread isn't a side effect of the ISP partnerships, it's the actual reason they exist. The goal is locality: get video bits as close as possible to wherever someone is actually watching, so they travel the shortest possible network distance. Achieving that at global scale requires being physically present inside or next to a huge number of individual ISP networks — and since Netflix doesn't own any last-mile network itself, the only way in is to partner with the ISPs who do. The two deployment models below are just the two ways that partnership plays out in practice:</p>
+      <ul>
+        <li><strong>Inside internet exchange points (IXPs)</strong> — interconnected with ISPs via settlement-free peering. Netflix retains ownership of the appliance here and pays its own power, colocation, and cross-connect costs. Lower control per-ISP, but fast to stand up and covers many networks at once from a shared location.</li>
+        <li><strong>Embedded directly inside ISP networks</strong> — Netflix designs and supplies the hardware free of charge; the ISP provides power, space, and connectivity, and — in most cases — takes full ownership and control of the equipment once it's installed, including deciding which of its own customers get routed to that box. This is the deeper partnership: better locality, at the cost of needing an actual relationship with each ISP.</li>
+      </ul>
+
+      <p>An IXP is worth being precise about, since "exchange point" can sound like the ISPs themselves are bundled together — they aren't. It's a shared physical facility where many separate networks each bring their own connection; any two networks present can then choose to peer directly with each other instead of paying a transit provider to reach each other. Netflix is just one more network showing up at that shared location.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg">
+          <rect x="220" y="120" width="280" height="80" rx="8" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.4" stroke-dasharray="5 3"/>
+          <text x="360" y="150" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11.5" fill="var(--ink-soft)">INTERNET EXCHANGE POINT</text>
+          <text x="360" y="168" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink-faint)">shared facility · shared switching fabric</text>
+          <rect x="300" y="178" width="120" height="14" rx="3" fill="var(--paper-raised)" stroke="var(--rule)" stroke-width="1"/>
+          <text x="360" y="188" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="8.5" fill="var(--ink-faint)">switching fabric</text>
+
+          <!-- Netflix box, top -->
+          <rect x="290" y="20" width="160" height="52" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.4"/>
+          <text x="370" y="42" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--data)">Netflix OCA</text>
+          <text x="370" y="59" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink)">one placement, this facility</text>
+
+          <!-- physical connection: Netflix into fabric -->
+          <path d="M370 72 V176" stroke="var(--ink-faint)" stroke-width="1.3" fill="none"/>
+
+          <!-- three separate ISPs around the bottom, each with their own physical link in -->
+          <rect x="40" y="235" width="140" height="52" rx="6" fill="var(--paper-raised)" stroke="var(--rule)" stroke-width="1.2"/>
+          <text x="110" y="257" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink)">ISP A</text>
+          <text x="110" y="274" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink-faint)">separate network</text>
+
+          <rect x="290" y="235" width="140" height="52" rx="6" fill="var(--paper-raised)" stroke="var(--rule)" stroke-width="1.2"/>
+          <text x="360" y="257" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink)">ISP B</text>
+          <text x="360" y="274" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink-faint)">separate network</text>
+
+          <rect x="540" y="235" width="140" height="52" rx="6" fill="var(--paper-raised)" stroke="var(--rule)" stroke-width="1.2"/>
+          <text x="610" y="257" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink)">ISP C</text>
+          <text x="610" y="274" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink-faint)">separate network</text>
+
+          <!-- physical links from each ISP into the fabric -->
+          <path d="M110 235 V200 H300" stroke="var(--ink-faint)" stroke-width="1.2" fill="none"/>
+          <path d="M360 235 V200" stroke="var(--ink-faint)" stroke-width="1.2" fill="none"/>
+          <path d="M610 235 V200 H420" stroke="var(--ink-faint)" stroke-width="1.2" fill="none"/>
+
+          <!-- logical peering links: Netflix <-> each ISP, drawn as dashed arcs above the fabric label -->
+          <path d="M310 46 C 150 60, 90 150, 105 233" stroke="var(--data)" stroke-width="1.4" fill="none" stroke-dasharray="5 3"/>
+          <path d="M370 72 C 370 110, 365 150, 362 233" stroke="var(--data)" stroke-width="1.4" fill="none" stroke-dasharray="5 3"/>
+          <path d="M430 46 C 590 60, 630 150, 608 233" stroke="var(--data)" stroke-width="1.4" fill="none" stroke-dasharray="5 3"/>
+
+          <!-- legend -->
+          <line x1="140" y1="305" x2="175" y2="305" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="182" y="309" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-faint)">physical link into facility</text>
+          <line x1="410" y1="305" x2="445" y2="305" stroke="var(--data)" stroke-width="1.4" stroke-dasharray="5 3"/>
+          <text x="452" y="309" font-family="Inter, sans-serif" font-size="10" fill="var(--data)">peering (settlement-free)</text>
+        </svg>
+        <div class="diagram-caption">one OCA placement at an IXP can peer with several ISPs that are also present there</div>
+      </div>
+
+      <h3>How a play request actually flows through it</h3>
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 760 460" xmlns="http://www.w3.org/2000/svg">
+          <!-- lifelines -->
+          <line x1="120" y1="74" x2="120" y2="415" stroke="var(--rule)" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <line x1="390" y1="74" x2="390" y2="415" stroke="var(--rule)" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <line x1="645" y1="74" x2="645" y2="415" stroke="var(--rule)" stroke-width="1.2" stroke-dasharray="4 3"/>
+
+          <!-- actor headers -->
+          <rect x="30" y="20" width="180" height="52" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="120" y="51" text-anchor="middle" font-family="Inter, sans-serif" font-size="13" fill="var(--ink)">Client device</text>
+
+          <rect x="290" y="20" width="200" height="52" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.2"/>
+          <text x="390" y="42" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">CONTROL PLANE</text>
+          <text x="390" y="59" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="var(--ink)">Auth, licensing, steering</text>
+
+          <rect x="560" y="20" width="170" height="52" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.2"/>
+          <text x="645" y="42" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--data)">OCA</text>
+          <text x="645" y="59" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="var(--ink)">cache appliance</text>
+
+          <!-- step 1: OCA -> Control -->
+          <circle cx="645" cy="110" r="9" fill="var(--data)"/>
+          <text x="645" y="114" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--paper)">1</text>
+          <path d="M636 110 H399" stroke="var(--data)" stroke-width="1.4" fill="none" marker-end="url(#a2)"/>
+          <text x="517" y="102" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink-soft)">reports health, routes, file availability</text>
+
+          <!-- step 2: Client -> Control -->
+          <circle cx="120" cy="172" r="9" fill="var(--ink-faint)"/>
+          <text x="120" y="176" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--paper)">2</text>
+          <path d="M129 172 H381" stroke="var(--ink-faint)" stroke-width="1.4" fill="none" marker-end="url(#a2n)"/>
+          <text x="255" y="164" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink-soft)">request: "play this title"</text>
+
+          <!-- step 3: control-plane self note -->
+          <rect x="255" y="210" width="270" height="70" rx="6" fill="var(--paper-raised)" stroke="var(--rule)" stroke-width="1"/>
+          <circle cx="255" cy="210" r="9" fill="var(--control)"/>
+          <text x="255" y="214" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--paper)">3</text>
+          <text x="390" y="234" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="var(--ink)">check auth + licensing</text>
+          <text x="390" y="252" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="var(--ink)">steering picks best OCA(s)</text>
+          <text x="390" y="270" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" fill="var(--ink)">for this client</text>
+
+          <!-- step 4: Control -> Client -->
+          <circle cx="390" cy="322" r="9" fill="var(--control)"/>
+          <text x="390" y="326" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--paper)">4</text>
+          <path d="M381 322 H129" stroke="var(--control)" stroke-width="1.4" fill="none" marker-end="url(#a2c)"/>
+          <text x="255" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink-soft)">signed OCA URL(s) returned</text>
+
+          <!-- step 5: Client -> OCA, direct -->
+          <circle cx="120" cy="384" r="9" fill="var(--data)"/>
+          <text x="120" y="388" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--paper)">5</text>
+          <path d="M132 384 H633" stroke="var(--data)" stroke-width="1.8" fill="none" stroke-dasharray="6 4" marker-end="url(#a2d)"/>
+          <text x="390" y="404" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--data)">client streams segments directly — bypasses control plane</text>
+
+          <defs>
+            <marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--data)"/></marker>
+            <marker id="a2n" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"/></marker>
+            <marker id="a2c" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--control)"/></marker>
+            <marker id="a2d" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--data)"/></marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">play-request sequence, per Netflix's own Open Connect documentation</div>
+      </div>
+
+      <div class="callout">
+        <span class="label">what "routes" means in step 1</span>
+        <p>The "routes" an OCA reports are learned via <strong>BGP (Border Gateway Protocol)</strong> — the protocol networks use to advertise which IP address ranges are reachable through them. Each OCA holds a BGP session with the router it's connected to at the ISP, and through that session learns which of the ISP's customer IP prefixes it's allowed to serve. An OCA will only serve client IPs that have actually been advertised to it over BGP — so the ISP, not Netflix, controls which of its own subscribers get routed to a given appliance, simply by choosing what to announce.</p>
+      </div>
+
+      <div class="callout">
+        <span class="label">the important design detail</span>
+        <p>Step 5: once the client has its signed URL, the video bytes flow directly from the OCA to the device. The control plane is never in that path again for this session — it already did its job (auth, licensing, picking the right server) up front. That's what lets the data plane scale independently of API traffic.</p>
+      </div>
+
+      <h3>Nightly fill: prediction instead of reaction</h3>
+      <p>Because viewing is predictable in aggregate, Open Connect pushes most content updates to OCAs during off-peak hours using dedicated, configurable fill windows — rather than waiting for real-time cache misses under peak load. OCAs can even pull updates from <em>each other</em> instead of all hitting origin, which further reduces backbone traffic. Popularity-prediction models decide what to place where, balancing offload efficiency against churn (you don't want to be constantly rewriting an appliance's disk).</p>
+
+      <div class="callout">
+        <span class="label">not an eventing system — a scheduled, predictive pull</span>
+        <p>Not real-time/event-driven, despite "pushes content." What's documented: the control plane decides what goes where using popularity predictions made ahead of time, then OCAs download on the scheduled fill window — pulling from each other where possible, not from origin every time. Anything below "scheduled, predictive, peer-assisted" (e.g. a message queue) is undocumented.</p>
+      </div>
+
+      <div class="callout">
+        <span class="label">why this is a clever piece of system design</span>
+        <p>This is prediction substituting for reaction. A conventional CDN reacts to traffic it can't forecast well. Netflix's content catalog and viewing patterns <em>are</em> forecastable, so they spend that predictability as an engineering resource — trading it for lower peak load, lower backbone cost, and appliances that rarely need same-day updates.</p>
+      </div>
+
+      <h3>How this system actually changed: the CDN transition</h3>
+      <p>Open Connect wasn't Netflix's first CDN. It replaced a specific, well-documented earlier setup — and the reasons for the change are instructive for a system-design discussion.</p>
+
+      <div class="evolution">
+        <div class="evolution-title">CDN strategy: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before (through ~2011) &mdash; [renting the capacity]</span>
+            <p>Netflix sent the large majority of its streaming traffic through commercial, third-party CDN vendors — primarily Akamai, Limelight, and Level 3 — buying delivery capacity the same way most video services still do today. This is a demand-driven model: the vendor's edge reacts to cache misses as they happen.</p>
+          </div>
+          <div class="after">
+            <span class="stage-label">after (2011 onward) &mdash; [owning the capacity]</span>
+            <p>Netflix built Open Connect: its own purpose-built appliances, deployed via direct ISP peering and embedding, with proactive nightly fill instead of reactive caching. Third-party CDNs weren't dropped instantly — the shift happened gradually as Open Connect's footprint grew.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>The mechanism of the change matters as much as the fact of it: this wasn't a swap of one vendor for another under the same architecture. It was a change in <em>caching model</em> — from reactive (wait for a miss, then fetch and cache) to proactive (predict demand, push content ahead of it) — which is only possible because Netflix controls both the content catalog and enough viewing-pattern data to make those predictions. A third-party CDN vendor serving many customers doesn't have that same predictive advantage for any one customer's catalog.</p>
+
+      <div class="refs">
+        <span class="label">references</span>
+        <ol>
+          <li><span class="src-tag">official</span>Netflix Open Connect, <a href="https://openconnect.netflix.com/Open-Connect-Overview.pdf" target="_blank" rel="noopener">"Open Connect Overview"</a> (PDF) — primary source for this entire section: OCA design, IXP vs. embedded deployment, the numbered playback interaction sequence, and the nightly predictive fill model are all described here directly by the Open Connect team.</li>
+          <li><span class="src-tag">official</span>Netflix, <a href="https://openconnect.netflix.com/Open-Connect-Briefing-Paper.pdf" target="_blank" rel="noopener">"A Cooperative Approach to Content Delivery"</a> (Open Connect Briefing Paper, 2021) — a longer, ISP-facing document with concrete scale figures (14,000+ OCAs across 142 countries as of 2020, $1B+ invested since 2011, 80+ IXP locations in 25+ countries, 1,000+ ISPs hosting embedded OCAs) and a direct explainer of transit vs. peering.</li>
+          <li><span class="src-tag">official</span>Netflix Open Connect, <a href="https://openconnect.netflix.com/en/appliances/" target="_blank" rel="noopener">"Open Connect Appliances"</a> — source for hardware redundancy (drives, power supplies, network ports), NOC-based continuous health monitoring, the BIRD BGP daemon, and the fact that health/load feedback is automatically incorporated into routing decisions.</li>
+          <li><span class="src-tag">press</span><a href="https://blog.apnic.net/2018/06/20/netflix-content-distribution-through-open-connect/" target="_blank" rel="noopener">"Netflix content distribution through Open Connect"</a>, APNIC Blog, 2018 — source for the detail that an OCA only serves client IPs explicitly advertised to it via BGP, giving the ISP direct control over which of its subscribers get routed to a given appliance.</li>
+          <li><span class="src-tag">press</span><a href="https://techcrunch.com/2012/06/04/netflix-open-connect/" target="_blank" rel="noopener">"Netflix Rolls Out Its Own CDN: Open Connect"</a>, TechCrunch, June 2012 — contemporaneous report of the rollout, naming Akamai, Limelight, and Level 3 as the incumbent third-party CDNs it was reducing reliance on.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 3 ============ -->
+    <section class="chapter" id="playback-flow">
+      <span class="eyebrow">03 &middot; the handoff, in more detail</span>
+      <h2>Client → playback flow</h2>
+
+      <p>Chapter 2 compressed the play-request sequence into five steps. Here's what's actually named and documented inside step 2–3 of that sequence — the part that happens entirely in the <span class="plane-tag control">control plane</span>, before any byte of video moves.</p>
+
+      <h3>PlayAPI: where the request actually lands</h3>
+      <p>When a device starts playback, it's making manifest and license requests against a specific backend service Netflix has named in public writing: <code class="inline">PlayAPI</code>. Netflix engineers describe it plainly as <em>"a critical backend service on the video streaming control plane, responsible for handling device initiated manifest and license requests necessary to start playback."</em> It's also, by their own account, a service that has had to survive real load spikes — one incident they describe involved a 12x spike in pre-fetch requests per second from Android devices after an infrastructure outage, which is a useful concrete detail if the discussion turns to "what actually goes wrong here."</p>
+
+      <h3>The Steering Service picks where the bytes will come from</h3>
+      <p>Separately, a <code class="inline">Steering Service</code> computes what they call a <strong>proximity rank</strong> — a ranked list of Open Connect sites for each client request — and logs that decision as a "steering playback manifest." The OCA keeps its own log too, once the client actually connects and starts streaming — which files, how many bytes. Downstream, those two logs get joined into one record, giving a direct link between the control plane's decision (which OCA it picked) and the data plane's outcome (what the client actually streamed from) — the clearest documented tie between the two.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 -25 780 345" xmlns="http://www.w3.org/2000/svg">
+          <rect x="20" y="130" width="150" height="60" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="95" y="165" text-anchor="middle" font-family="Inter, sans-serif" font-size="12.5" fill="var(--ink)">Client device</text>
+
+          <rect x="250" y="20" width="190" height="55" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.2"/>
+          <text x="345" y="42" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">PlayAPI</text>
+          <text x="345" y="59" text-anchor="middle" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">manifest + license request</text>
+
+          <rect x="250" y="135" width="190" height="60" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.2"/>
+          <text x="345" y="158" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">Steering Service</text>
+          <text x="345" y="175" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink)">ranks eligible OCAs</text>
+          <text x="345" y="188" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink)">by proximity rank</text>
+
+          <!-- three candidate OCAs, ranked -->
+          <rect x="580" y="12" width="185" height="58" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.6"/>
+          <circle cx="580" cy="12" r="10" fill="var(--data)"/>
+          <text x="580" y="16" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--paper)">1</text>
+          <text x="675" y="35" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--data)">OCA — rank 1</text>
+          <text x="675" y="53" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink)">selected — serves the client</text>
+
+          <rect x="580" y="95" width="185" height="50" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <circle cx="580" cy="95" r="9" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="580" y="99" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-faint)">2</text>
+          <text x="675" y="116" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-soft)">OCA — rank 2</text>
+          <text x="675" y="133" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-faint)">eligible, held as fallback</text>
+
+          <rect x="580" y="157" width="185" height="50" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <circle cx="580" cy="157" r="9" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="580" y="161" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--ink-faint)">3</text>
+          <text x="675" y="178" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-soft)">OCA — rank 3</text>
+          <text x="675" y="195" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-faint)">eligible, held as fallback</text>
+
+          <!-- client -> PlayAPI -->
+          <path d="M170 145 V47 H248" stroke="var(--ink-faint)" stroke-width="1.3" fill="none" marker-end="url(#a3)"/>
+          <!-- PlayAPI -> Steering -->
+          <path d="M345 75 V133" stroke="var(--ink-faint)" stroke-width="1.3" fill="none" marker-end="url(#a3)"/>
+
+          <!-- Steering -> rank 2 / rank 3: considered, not picked -->
+          <path d="M440 170 H578" stroke="var(--ink-faint)" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#a3)"/>
+          <path d="M440 180 V182 H578" stroke="var(--ink-faint)" stroke-width="1.2" fill="none" stroke-dasharray="4 3" marker-end="url(#a3)"/>
+          <!-- Steering -> rank 1: the one actually picked -->
+          <path d="M440 150 C 500 110, 540 70, 578 28" stroke="var(--data)" stroke-width="1.6" fill="none" marker-end="url(#a3d)"/>
+
+          <!-- Steering -> Client: signed manifest, ranked list of URLs -->
+          <path d="M345 195 V245 H95 V192" stroke="var(--control)" stroke-width="1.4" fill="none" marker-end="url(#a3c)"/>
+          <text x="220" y="260" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--control)">signed manifest: ranked OCA URLs (#1, #2, #3)</text>
+
+          <!-- Client -> OCA rank 1: direct byte stream, bypassing control plane -->
+          <path d="M150 130 C 300 -8, 500 -8, 578 62" stroke="var(--data)" stroke-width="1.8" fill="none" stroke-dasharray="6 4" marker-end="url(#a3d)"/>
+          <text x="420" y="-14" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10" fill="var(--data)">client streams directly from rank-1 OCA only</text>
+
+          <defs>
+            <marker id="a3" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"/></marker>
+            <marker id="a3c" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--control)"/></marker>
+            <marker id="a3d" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--data)"/></marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">named, documented services behind the generic "steering" step from chapter 2 — several OCAs are eligible, only the top-ranked one is used</div>
+      </div>
+
+      <p>Netflix confirms the client gets a <em>ranked list</em> of OCA URLs, not just one — but not the exact logic for when a lower-ranked one gets used. Treat "fallback" as a documented list, not a confirmed retry algorithm.</p>
+
+      <h3>What's inside the manifest</h3>
+      <p>Documented in the context of Netflix's live-streaming architecture (not confirmed identical for on-demand): the manifest is delivered from the cloud, not the CDN, so it can be personalized per device. Its job is broader than just video quality — it describes several independent tracks, and the client picks one from each category below.</p>
+
+      <table class="field-table">
+        <tr><th>track</th><th>field</th><th>what it holds</th></tr>
+        <tr><td>video</td><td>bitrates</td><td>the set of encoding bitrates available for this playback session</td></tr>
+        <tr><td>video</td><td>CDN servers</td><td>the list of CDN (OCA) servers the player is allowed to request segments from</td></tr>
+        <tr><td>video</td><td>segment template</td><td>a formula the device uses to compute a segment's URL directly from the current time, instead of asking the server for it</td></tr>
+        <tr><td>audio</td><td>CDN servers</td><td>same OCAs as video — <strong>confirmed by direct capture</strong>, not a video-only mechanism</td></tr>
+        <tr><td>audio</td><td>bitrate / language</td><td>its own ladder (e.g. stereo vs. 5.1), separate per language, fetched and decoded independently then synced during playback (general practice, not separately confirmed)</td></tr>
+        <tr><td>subtitles</td><td>CDN servers</td><td>same OCAs as video and audio — <strong>confirmed by direct capture</strong></td></tr>
+        <tr><td>subtitles</td><td>delivery</td><td>one complete TTML/IMSC1.1 file per request, not chunked into segments like video/audio — <strong>confirmed by direct capture</strong> (a real session's HAR file)</td></tr>
+      </table>
+
+      <p>The subtitle delivery finding is worth flagging as unusually solid for this page — it's not inferred from documentation, it's a direct observation from a real session's HAR file (a browser network capture): a single request returned a complete, full-length closed-caption file (timestamps, styling, and all caption text included) rather than a segment.</p>
+
+      <p>Either way, it's the same idea as the next section, where the client also picks video quality on its own instead of asking Netflix each time: push the decision to wherever it can be made locally, without a round trip.</p>
+
+      <p><strong style="color: var(--data);">Live streaming:</strong> a live stream keeps producing new segments on a steady schedule (say, one every few seconds). Without the template, the client would have to keep asking the control plane "where's the next segment?" over and over. With it, the client just does the math itself from the current time and knows the URL in advance — no extra request needed. That saves time (no waiting on a reply) and saves Netflix's servers from getting hit with those extra requests right when it's busiest, like during a big live event.</p>
+
+      <p><strong style="color: var(--data);">On-demand (a movie or show):</strong> there's no wall clock to map here — the whole title is a fixed, finished asset before you ever hit play, so there's nothing "growing" in real time. The general industry pattern for this case (not something Netflix has specifically confirmed) is a template keyed to <strong>segment number</strong> instead of time — "segment 1, segment 2, segment 3..." — for the same basic reason: it's more efficient than listing every one of, say, 1,200 individual segment URLs in a two-hour movie's manifest.</p>
+
+      <h3>Adaptive bitrate switching happens on the client</h3>
+      <p>Once playback starts, quality switching is handled by what Netflix engineers call their <strong>adaptive streaming engine</strong> — confirmed in their own writing as something they've spent years optimizing for video specifically. The stated mechanism: media is split into small chunks, each available at several quality levels, and the client-side algorithm's job is to pick the best available quality for current network conditions, chunk by chunk, aiming for the best overall playback experience even under constrained bandwidth.</p>
+
+      <p>Putting Chapters 2–4 together, one title's segments form a logical grid: one axis is <em>time</em> (segment 1, 2, 3...), the other is <em>quality rung</em> (the per-title ladder from Chapter 4). The client's adaptive engine is really just picking one cell per column as it plays:</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 720 300" xmlns="http://www.w3.org/2000/svg">
+          <text x="20" y="25" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-faint)">quality rung</text>
+          <text x="20" y="55" text-anchor="start" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Rung 1 (highest)</text>
+          <text x="20" y="115" text-anchor="start" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Rung 2</text>
+          <text x="20" y="175" text-anchor="start" font-family="Inter, sans-serif" font-size="10.5" fill="var(--ink)">Rung 3 (lowest)</text>
+          <text x="360" y="215" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="var(--ink-faint)">time &rarr; (segment 1, 2, 3 ...)</text>
+
+          <!-- grid cells: 5 columns x 3 rows -->
+          <g font-family="IBM Plex Mono, monospace" font-size="9.5">
+            <!-- row 1 -->
+            <rect x="140" y="35" width="90" height="35" rx="4" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.4"/>
+            <text x="185" y="57" text-anchor="middle" fill="var(--data)">seg 1</text>
+            <rect x="240" y="35" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="285" y="57" text-anchor="middle" fill="var(--ink-faint)">seg 2</text>
+            <rect x="340" y="35" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="385" y="57" text-anchor="middle" fill="var(--ink-faint)">seg 3</text>
+            <rect x="440" y="35" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="485" y="57" text-anchor="middle" fill="var(--ink-faint)">seg 4</text>
+            <rect x="540" y="35" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="585" y="57" text-anchor="middle" fill="var(--ink-faint)">...</text>
+
+            <!-- row 2 -->
+            <rect x="140" y="95" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="185" y="117" text-anchor="middle" fill="var(--ink-faint)">seg 1</text>
+            <rect x="240" y="95" width="90" height="35" rx="4" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.4"/>
+            <text x="285" y="117" text-anchor="middle" fill="var(--data)">seg 2</text>
+            <rect x="340" y="95" width="90" height="35" rx="4" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.4"/>
+            <text x="385" y="117" text-anchor="middle" fill="var(--data)">seg 3</text>
+            <rect x="440" y="95" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="485" y="117" text-anchor="middle" fill="var(--ink-faint)">seg 4</text>
+            <rect x="540" y="95" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="585" y="117" text-anchor="middle" fill="var(--ink-faint)">...</text>
+
+            <!-- row 3 -->
+            <rect x="140" y="155" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="185" y="177" text-anchor="middle" fill="var(--ink-faint)">seg 1</text>
+            <rect x="240" y="155" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="285" y="177" text-anchor="middle" fill="var(--ink-faint)">seg 2</text>
+            <rect x="340" y="155" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="385" y="177" text-anchor="middle" fill="var(--ink-faint)">seg 3</text>
+            <rect x="440" y="155" width="90" height="35" rx="4" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.4"/>
+            <text x="485" y="177" text-anchor="middle" fill="var(--data)">seg 4</text>
+            <rect x="540" y="155" width="90" height="35" rx="4" fill="var(--paper)" stroke="var(--rule)" stroke-width="1"/>
+            <text x="585" y="177" text-anchor="middle" fill="var(--ink-faint)">...</text>
+          </g>
+
+          <!-- path showing the client's actual picks across time (a network dip mid-playback) -->
+          <path d="M195 52 C 210 70, 225 90, 240 105" stroke="var(--data)" stroke-width="1.6" fill="none" stroke-dasharray="4 3" marker-end="url(#ag)"/>
+          <path d="M330 112 H340" stroke="var(--data)" stroke-width="1.6" fill="none" stroke-dasharray="4 3"/>
+          <path d="M385 130 C 395 145, 430 155, 440 163" stroke="var(--data)" stroke-width="1.6" fill="none" stroke-dasharray="4 3" marker-end="url(#ag)"/>
+
+          <text x="360" y="250" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--data)" font-style="italic">example path: starts high, drops on a network dip, drops again — one cell picked per segment</text>
+
+          <defs>
+            <marker id="ag" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--data)"/></marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">the logical addressing grid a manifest + segment template resolves — not a confirmed physical file layout</div>
+      </div>
+
+      <div class="callout">
+        <span class="label">logical layout vs. physical storage — a real distinction</span>
+        <p>This grid is <em>logical</em>: it's what the manifest and segment template (both confirmed in this chapter) have to resolve to when the client asks for a specific segment at a specific quality. It is <strong>not</strong> a confirmed description of how an OCA actually stores files on disk. Whether that's literal nested folders (<code class="inline">title/1080p/segment004</code>), an object-store style key, or something else entirely isn't something Netflix has published — treat the grid as "what the addressing scheme has to support," not "what the filesystem looks like."</p>
+      </div>
+
+      <h3>Content protection: DRM and encryption</h3>
+      <p>Everything downloaded from an OCA is encrypted — the "license" half of PlayAPI's "manifest and license requests" (mentioned earlier in this chapter) exists specifically to hand the client a decryption key, without which the segments are unusable ciphertext. This is the piece of the flow that explains why the manifest and license requests are bundled into one step: the content is worthless without both.</p>
+
+      <table class="field-table">
+        <tr><th>layer</th><th>what it does</th></tr>
+        <tr><td>EME (Encrypted Media Extensions)</td><td>a W3C browser standard that lets a web page hand encrypted media to a device's decryption module</td></tr>
+        <tr><td>CDM (Content Decryption Module)</td><td>the actual decryption module — device/platform-specific (Widevine, FairPlay, or PlayReady)</td></tr>
+        <tr><td>license server</td><td>issues a decryption key to the client, tied to that device and that session</td></tr>
+        <tr><td>TEE</td><td>hardware-isolated environment on capable devices where the key and decrypted frames stay inaccessible to normal software</td></tr>
+      </table>
+
+      <p>There are actually <strong>two separate keys</strong> involved, not one — keeping them distinct is what makes the rest of this make sense: a <strong>device key pair</strong> (identity, unique per device, set at manufacture) and a <strong>content key</strong> (what actually decrypts this specific video, the same for every device watching it). The general mechanism, standard to how Widevine-style DRM provisions device identity — not something confirmed at Netflix-specific detail:</p>
+      <ol class="steps">
+        <li>At manufacture, the device's CDM gets a unique private/public key pair, generated inside the TEE so the private key never exists in normal readable memory. The public key is wrapped into a certificate, signed by the DRM vendor's root authority.</li>
+        <li>Requesting playback, the CDM sends its <strong>certificate</strong> (public key only) to the license server as part of PlayAPI's manifest+license request. The private key never leaves the device.</li>
+        <li>The license server encrypts the video's <strong>content key</strong> so that only this device's public key can wrap it — this wrapped result is the actual "license."</li>
+        <li>The wrapped license travels back. Only this device's private key, inside the TEE, can unwrap it and recover the content key. This is the one moment the content key exists in the clear — inside TEE-protected memory, never exposed to JS or the OS.</li>
+        <li>Encrypted video segments arrive separately, via the ordinary fetch path already covered in this chapter — JS hands them to the <code class="inline">&lt;video&gt;</code> element, which passes them into the native media pipeline.</li>
+        <li>The CDM decrypts each segment using the content key it now holds, entirely inside its own boundary.</li>
+        <li>Decrypted frames go straight to the renderer — not "embedded into" anything, they simply become the displayed video, without ever routing back through JS.</li>
+      </ol>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 720 500" xmlns="http://www.w3.org/2000/svg">
+          <rect x="40" y="40" width="220" height="56" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.2"/>
+          <text x="150" y="60" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">License Server</text>
+          <text x="150" y="78" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">Netflix</text>
+
+          <rect x="440" y="40" width="220" height="56" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.2"/>
+          <text x="550" y="60" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--data)">OCA</text>
+          <text x="550" y="78" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">encrypted video segments</text>
+
+          <rect x="250" y="210" width="220" height="100" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.3"/>
+          <text x="360" y="232" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--data)">CDM (device)</text>
+          <text x="360" y="252" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">private key lives in the TEE</text>
+          <text x="360" y="270" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">unwraps license &rarr; content key</text>
+
+          <rect x="250" y="400" width="220" height="56" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="360" y="420" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="var(--ink)">Screen</text>
+          <text x="360" y="437" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink-faint)">decrypted frames rendered</text>
+
+          <path d="M260 225 C 150 190, 90 140, 130 100" stroke="var(--control)" stroke-width="1.4" fill="none" marker-end="url(#dk1)"/>
+          <text x="60" y="150" font-family="Inter, sans-serif" font-size="9.5" fill="var(--control)">1. Certificate</text>
+          <text x="60" y="164" font-family="Inter, sans-serif" font-size="9.5" fill="var(--control)">(public key)</text>
+
+          <path d="M195 100 C 260 150, 300 180, 320 213" stroke="var(--control)" stroke-width="1.4" fill="none" marker-end="url(#dk1)"/>
+          <text x="215" y="180" font-family="Inter, sans-serif" font-size="9.5" fill="var(--control)">2. License: content key</text>
+          <text x="215" y="194" font-family="Inter, sans-serif" font-size="9.5" fill="var(--control)">wrapped for this device</text>
+
+          <path d="M470 100 C 430 150, 400 180, 380 208" stroke="var(--data)" stroke-width="1.4" fill="none" marker-end="url(#dk2)"/>
+          <text x="490" y="145" text-anchor="end" font-family="Inter, sans-serif" font-size="9.5" fill="var(--data)">4. Encrypted segments</text>
+          <text x="490" y="159" text-anchor="end" font-family="Inter, sans-serif" font-size="9.5" fill="var(--data)">(separate fetch)</text>
+
+          <path d="M360 312 V397" stroke="var(--data)" stroke-width="1.5" fill="none" marker-end="url(#dk2)"/>
+          <text x="375" y="358" font-family="Inter, sans-serif" font-size="9.5" fill="var(--data)">5. Decrypted frames,</text>
+          <text x="375" y="372" font-family="Inter, sans-serif" font-size="9.5" fill="var(--data)">bypasses JS entirely</text>
+
+          <defs>
+            <marker id="dk1" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--control)"/></marker>
+            <marker id="dk2" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--data)"/></marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">the license exchange (steps 1&ndash;2) and content decryption (steps 4&ndash;5) from the sequence above</div>
+      </div>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 720 470" xmlns="http://www.w3.org/2000/svg">
+          <rect x="150" y="20" width="200" height="44" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="250" y="38" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="var(--ink)">Network</text>
+          <text x="250" y="53" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink-faint)">encrypted segments</text>
+          <path d="M250 64 V95" stroke="var(--ink-faint)" stroke-width="1.3" fill="none" marker-end="url(#ec)"/>
+
+          <rect x="70" y="105" width="560" height="245" rx="14" fill="none" stroke="var(--rule)" stroke-width="1.2" stroke-dasharray="5 3"/>
+          <text x="90" y="128" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-faint)">BROWSER</text>
+
+          <rect x="110" y="150" width="180" height="52" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.2"/>
+          <text x="200" y="170" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">Page JavaScript</text>
+          <text x="200" y="187" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">fetch + license calls</text>
+
+          <rect x="390" y="130" width="210" height="180" rx="10" fill="none" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="405" y="150" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-faint)">native media pipeline</text>
+
+          <rect x="410" y="175" width="170" height="52" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.3"/>
+          <text x="495" y="195" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--data)">CDM</text>
+          <text x="495" y="212" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">decrypts internally</text>
+
+          <path d="M290 180 L410 202" stroke="var(--ink-faint)" stroke-width="1.3" fill="none" marker-end="url(#ec)"/>
+          <text x="405" y="223" text-anchor="end" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink-faint)">encrypted bytes</text>
+
+          <path d="M495 227 V370 H430 V386" stroke="var(--data)" stroke-width="1.5" fill="none" marker-end="url(#ed)"/>
+          <text x="490" y="358" text-anchor="end" font-family="Inter, sans-serif" font-size="9.5" fill="var(--data)">decrypted frames, bypasses JS</text>
+
+          <rect x="330" y="392" width="200" height="44" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.1"/>
+          <text x="430" y="410" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="var(--ink)">Screen</text>
+          <text x="430" y="425" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink-faint)">final decoded pixels</text>
+
+          <defs>
+            <marker id="ec" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"/></marker>
+            <marker id="ed" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--data)"/></marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">encrypted bytes and decrypted output take separate paths — JS never sees the second one</div>
+      </div>
+
+      <div class="callout">
+        <span class="label">confirmed vs. widely reported</span>
+        <p>EME is a confirmed, official W3C standard. The multi-DRM setup (Widevine/FairPlay/PlayReady) and quality-gating by decryption strength are widely and consistently reported, but not from a Netflix-authored source — treat this section as industry-standard practice Netflix is reported to follow, not a Netflix-published spec.</p>
+      </div>
+
+      <div class="callout">
+        <span class="label">boundary of what's publicly documented</span>
+        <p>Netflix has named PlayAPI and the Steering Service, and confirmed the manifest contents and adaptive engine's existence — but not the actual bitrate-switching algorithm. Treat that as an open gap, not something to infer.</p>
+      </div>
+
+      <p>Chrome's own <code class="inline">chrome://media-internals</code> page (mentioned earlier) shows all of this live, for any session. A real capture from an actual Netflix playback session makes several things in this chapter concrete rather than abstract.</p>
+      <button class="log-trigger" onclick="document.getElementById('mi-modal').classList.add('open')">&#9656; view a real media-internals log</button>
+
+      <div class="refs">
+        <span class="label">references</span>
+        <ol>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/enhancing-netflix-reliability-with-service-level-prioritized-load-shedding-e735e6ce8f7d" target="_blank" rel="noopener">"Enhancing Netflix Reliability with Service-Level Prioritized Load Shedding"</a> — source for PlayAPI's role and the 12x pre-fetch spike incident.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/driving-content-delivery-efficiency-through-classifying-cache-misses-ffcf08026b6c" target="_blank" rel="noopener">"Driving Content Delivery Efficiency Through Classifying Cache Misses"</a> — source for the Steering Service, proximity rank, and how steering + OCA logs are joined.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/behind-the-streams-live-at-netflix-part-1-d23f917c2f40" target="_blank" rel="noopener">"Behind the Streams: Three Years Of Live at Netflix, Part 1"</a> — source for manifest contents and segment-template mechanics (documented in the live-streaming context).</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/engineering-a-studio-quality-experience-with-high-quality-audio-at-netflix-eaa0b6145f32" target="_blank" rel="noopener">"Engineering a Studio Quality Experience With High-Quality Audio at Netflix"</a> — source confirming the existence and general goal of Netflix's client-side adaptive streaming engine for video.</li>
+          <li><span class="src-tag">official</span>W3C, <a href="https://www.w3.org/TR/encrypted-media/" target="_blank" rel="noopener">"Encrypted Media Extensions"</a> — the browser standard underlying EME/CDM-based content protection described above.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 4 ============ -->
+    <section class="chapter" id="encoding">
+      <span class="eyebrow">04 &middot; before the bytes ever reach Open Connect</span>
+      <h2>Encoding pipeline</h2>
+
+      <p>Chapters 2 and 3 assumed the encoded files already exist on an OCA, ready to serve. This chapter covers how those files actually get made — specifically, how Netflix decides which bitrate-to-resolution combinations to produce for a given title. It's the one encoding decision Netflix has documented in the most depth, with clear before-and-after numbers to show for it.</p>
+
+      <h3>Who decides the ladder itself?</h3>
+      <p>A streaming client picks from a fixed set of pre-encoded quality levels for a title — a <strong>bitrate ladder</strong> — and switches between them based on network conditions (this is the adaptive engine from Chapter 3). A simple illustrative scenario, not a specific documented Netflix example:</p>
+      <ul>
+        <li>You start watching on solid home wifi and get <strong>1080p at ~4500 kbps</strong>.</li>
+        <li>You walk to a room with a weak signal, and the client silently drops to <strong>720p at ~1750 kbps</strong> rather than buffering.</li>
+        <li>That switching behavior — deciding which of the available rungs to use right now — is Chapter 3's job.</li>
+      </ul>
+      <p>This chapter is about a step before any of that happens: someone — or something — had to decide, ahead of time, that "1080p at 4500 kbps" and "720p at 1750 kbps" were the right rungs to encode for this particular title in the first place. That decision is the ladder itself, and how Netflix makes it is what this chapter covers.</p>
+
+      <div class="evolution">
+        <div class="evolution-title">bitrate ladder strategy: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before (late 2010 &ndash; 2015)</span>
+            <p>Netflix's video engineers hand-tuned <strong>one fixed bitrate ladder</strong> — the same set of bitrate/resolution pairs — applied to every title in the catalog, based on side-by-side visual tests across content in general.</p>
+          </div>
+          <div class="after">
+            <span class="stage-label">after (per-title encoding, Dec 2015)</span>
+            <p>Netflix started running trial encodes on <em>each individual title</em> and building a custom ladder for it, based on that title's own complexity — because a flat cartoon and a fast-motion action film need very different bitrates to look equally good.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>The fixed ladder itself, as Netflix documented it:</p>
+      <table class="field-table">
+        <tr><th>resolution</th><th>fixed-ladder bitrate</th></tr>
+        <tr><td>1080p</td><td>5800 kbps (top rung)</td></tr>
+        <tr><td>720p</td><td>2350 kbps</td></tr>
+        <tr><td>480p</td><td>1750 kbps</td></tr>
+      </table>
+      <p>Every title got exactly these pairs, regardless of content — the exact mismatch the next section walks through.</p>
+
+      <p>The mechanism:</p>
+      <ul>
+        <li>Run many trial encodes of the title across a grid of resolutions and Quantization Parameter (QP) values.</li>
+        <li><strong>Quantization Parameter (QP)</strong> is the actual detail-discarding knob in the codec — low QP keeps more detail at a bigger file size, high QP discards more for a smaller one. Testing multiple QP values at each resolution is what produces enough points to map the bitrate/quality trade-off accurately.</li>
+        <li>Plot the resulting bitrate against measured quality for each trial encode.</li>
+        <li>Find the <strong>convex hull</strong> — the set of bitrate/resolution points that deliver the best quality per bit.</li>
+        <li>Build the ladder from the points closest to that hull, rather than from one fixed recipe applied to everything.</li>
+      </ul>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 720 210" xmlns="http://www.w3.org/2000/svg">
+          <rect x="15" y="70" width="150" height="70" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="90" y="98" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="var(--ink)">Many trial encodes</text>
+          <text x="90" y="115" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-soft)">per resolution × QP</text>
+
+          <rect x="200" y="70" width="150" height="70" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="275" y="98" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="var(--ink)">Measure bitrate</text>
+          <text x="275" y="115" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-soft)">vs. quality (VMAF)</text>
+
+          <rect x="385" y="70" width="150" height="70" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.2"/>
+          <text x="460" y="98" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="var(--ink)">Find the</text>
+          <text x="460" y="115" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">convex hull</text>
+
+          <rect x="570" y="70" width="150" height="70" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.2"/>
+          <text x="645" y="98" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="var(--ink)">Per-title ladder</text>
+          <text x="645" y="115" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink-soft)">shipped to Open Connect</text>
+
+          <path d="M165 105 H198" stroke="var(--ink-faint)" stroke-width="1.3" fill="none" marker-end="url(#a4)"/>
+          <path d="M350 105 H383" stroke="var(--ink-faint)" stroke-width="1.3" fill="none" marker-end="url(#a4)"/>
+          <path d="M535 105 H568" stroke="var(--ink-faint)" stroke-width="1.3" fill="none" marker-end="url(#a4)"/>
+          <defs>
+            <marker id="a4" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"/></marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">the per-title encoding process, as described by Netflix's encoding team</div>
+      </div>
+
+      <p>Two published examples make the effect concrete. <em>Orange Is the New Black</em>, a title of "average complexity," needed only 4640 kbps under per-title encoding to match the same top-tier quality the fixed ladder needed 5800 kbps to reach — a 20% bitrate reduction with no quality loss. <em>BoJack Horseman</em>, a visually simple title, saw the effect run the other way: the fixed ladder capped it at 480p (at 1750 kbps), but per-title encoding delivered full 1080p at an even lower 1540 kbps, because the content simply didn't need as many bits to look clean at that resolution.</p>
+
+      <h3>Quality metric: PSNR, then VMAF</h3>
+      <p>Deciding "is this encode good enough" requires a quality metric. Netflix's engineers note that their per-title analysis originally used PSNR (a standard, simple fidelity metric), while noting even then that PSNR "does not always reflect perceptual quality." In the same post, they describe having developed <strong>VMAF</strong> (Video Multi-Method Assessment Fusion) — a perceptual quality metric built in collaboration with University of Southern California researchers — as the more perceptually accurate alternative used for this kind of analysis.</p>
+
+      <h3>Going further: per-shot encoding (Dynamic Optimizer)</h3>
+      <div class="evolution">
+        <div class="evolution-title">granularity of optimization: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before (per-title, 2015)</span>
+            <p>One optimized bitrate ladder per <em>title</em> — still a single recipe applied across an entire movie or episode, even though a single title can contain wildly different scenes (a static dialogue scene vs. a fast action sequence).</p>
+          </div>
+          <div class="after">
+            <span class="stage-label">after (per-shot, Dynamic Optimizer, 2018)</span>
+            <p>Netflix productized a <strong>shot-based encoding framework</strong> that analyzes and optimizes compression <em>within</em> a single video — at the level of individual shots — using VMAF as the optimization objective for each one.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>Per-title encoding (2015) was followed by a distinct next step: productizing this shot-based framework so that optimization happens at a finer grain than "one recipe per title." The core idea is the same convex-hull logic as per-title encoding, just applied per shot instead of per title — because a single film can contain both a static dialogue scene and a fast action sequence, each with very different optimal bitrate/resolution trade-offs.</p>
+
+      <div class="callout">
+        <span class="label">what's confirmed vs. not, in this chapter</span>
+        <p>Everything above — the fixed-ladder era, the per-title algorithm and its convex-hull mechanism, the specific bitrate numbers, VMAF, and the shot-based Dynamic Optimizer — comes directly from the engineering blog posts linked below. What this chapter does <em>not</em> cover, because it hasn't been published in comparable technical detail: current AV1/codec-selection logic per device, and any encoding work more recent than what's cited here. Treat this as accurate through the publication dates of the sources, not as necessarily the present-day pipeline.</p>
+      </div>
+
+      <div class="refs">
+        <span class="label">references</span>
+        <ol>
+          <li><span class="src-tag">official</span>A. Aaron, Z. Li, M. Manohara, J. De Cock, D. Ronca, <a href="https://netflixtechblog.com/per-title-encode-optimization-7e99442b62a2" target="_blank" rel="noopener">"Per-Title Encode Optimization"</a>, Netflix TechBlog, Dec. 2015 — primary source for the fixed-ladder era, the convex-hull algorithm, the Orange Is the New Black / BoJack Horseman examples, and the introduction of VMAF.</li>
+          <li><span class="src-tag">official</span><a href="https://netflixtechblog.com/optimized-shot-based-encodes-now-streaming-4b9464204830" target="_blank" rel="noopener">"Optimized shot-based encodes: Now Streaming!"</a>, Netflix TechBlog — primary source for the Dynamic Optimizer / per-shot encoding framework and its relationship to per-title encoding.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 5 ============ -->
+    <section class="chapter" id="microservices">
+      <span class="eyebrow">05 &middot; before any origin service sees the request</span>
+      <h2>Backend microservices</h2>
+
+      <p>Chapter 1 covered a handful of control-plane services by what they do — auth, catalog, personalization, licensing, PlayAPI. But before any request reaches any of them, it has to enter that mesh of services somehow. This chapter is about that entry point. Netflix calls it <code class="inline">Zuul</code>.</p>
+
+      <h3>Zuul: the edge gateway</h3>
+      <p>Zuul is an <strong>L7 (application-layer) gateway</strong> — it sits between every Netflix client and the origin services behind it — API, playback, the website, logging. It handles authentication, routes each request to the right origin service, monitors traffic, and can reroute to another cloud region if one is in trouble. It's also where retry and circuit-breaking logic lives — implemented with <strong>Hystrix</strong>, Netflix's own circuit-breaker library, which stops a struggling dependency from taking the rest of the system down with it (this is the tool ChAP later hooks into, in Chapter 7). Routing includes directing a request to a healthy backend instance, which is a load-balancing function — but that's one responsibility inside the gateway role, not a separate identity; Zuul is the gateway, and load-balancing-style routing is one of the things it does.</p>
+
+      <p>Internally, Zuul's own documentation describes requests as passing through a pipeline of typed <strong>filters</strong>: <code class="inline">pre</code> filters run before routing (this is where auth checks happen), a <code class="inline">route</code> filter does the actual forwarding to an origin service, and <code class="inline">post</code> filters run on the way back (response handling). An <code class="inline">error</code> filter runs instead, in parallel to that normal path, if anything throws partway through.</p>
+
+      <div class="diagram-wrap">
+        <svg viewBox="0 0 820 260" xmlns="http://www.w3.org/2000/svg">
+          <rect x="20" y="90" width="130" height="50" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="85" y="120" text-anchor="middle" font-family="Inter, sans-serif" font-size="12" fill="var(--ink)">Client request</text>
+
+          <rect x="200" y="30" width="140" height="50" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.3"/>
+          <text x="270" y="55" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">pre filters</text>
+          <text x="270" y="71" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">e.g. authentication</text>
+
+          <rect x="390" y="30" width="140" height="50" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.3"/>
+          <text x="460" y="55" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">route filter</text>
+          <text x="460" y="71" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">forwards to origin</text>
+
+          <rect x="580" y="30" width="140" height="50" rx="6" fill="var(--control-soft)" stroke="var(--control)" stroke-width="1.3"/>
+          <text x="650" y="55" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--control)">post filters</text>
+          <text x="650" y="71" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">response handling</text>
+
+          <rect x="390" y="160" width="140" height="50" rx="6" fill="var(--data-soft)" stroke="var(--data)" stroke-width="1.3"/>
+          <text x="460" y="185" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--data)">error filter</text>
+          <text x="460" y="201" text-anchor="middle" font-family="Inter, sans-serif" font-size="9.5" fill="var(--ink)">runs if something throws</text>
+
+          <rect x="750" y="90" width="55" height="50" rx="6" fill="var(--paper)" stroke="var(--ink-faint)" stroke-width="1.2"/>
+          <text x="777" y="112" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink)">API,</text>
+          <text x="777" y="125" text-anchor="middle" font-family="Inter, sans-serif" font-size="10" fill="var(--ink)">etc.</text>
+
+          <path d="M150 105 C 175 90, 190 70, 205 62" stroke="var(--ink-faint)" stroke-width="1.2" fill="none" marker-end="url(#zf)"/>
+          <path d="M340 55 H388" stroke="var(--control)" stroke-width="1.3" fill="none" marker-end="url(#zfc)"/>
+          <path d="M530 55 H578" stroke="var(--control)" stroke-width="1.3" fill="none" marker-end="url(#zfc)"/>
+          <path d="M720 55 C 740 65, 755 80, 770 88" stroke="var(--control)" stroke-width="1.3" fill="none" marker-end="url(#zfc)"/>
+          <path d="M460 80 V158" stroke="var(--data)" stroke-width="1.3" stroke-dasharray="4 3" fill="none" marker-end="url(#zfd)"/>
+          <text x="475" y="120" font-family="Inter, sans-serif" font-size="9" fill="var(--ink-faint)">on exception</text>
+
+          <defs>
+            <marker id="zf" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--ink-faint)"/></marker>
+            <marker id="zfc" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--control)"/></marker>
+            <marker id="zfd" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="var(--data)"/></marker>
+          </defs>
+        </svg>
+        <div class="diagram-caption">Zuul's own filter-type pipeline, per Netflix's Zuul documentation</div>
+      </div>
+
+      <div class="evolution">
+        <div class="evolution-title">edge gateway architecture: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before (Zuul 1, 2013)</span>
+            <p>Built on the Servlet framework: <strong>blocking and multithreaded</strong>.</p>
+            <ul>
+              <li>Each connection holds one thread until its I/O finishes.</li>
+              <li>A slow backend means that thread stays stuck, waiting.</li>
+              <li>Devices that don't get a timely reply tend to retry — adding more requests on top of an already-slow backend.</li>
+              <li>More requests grab more threads, which also get stuck — the pool runs out, and the node can spiral into overload.</li>
+            </ul>
+          </div>
+          <div class="after">
+            <span class="stage-label">after (Zuul 2, 2016)</span>
+            <p>Rebuilt on Netty as <strong>asynchronous and non-blocking</strong>.</p>
+            <ul>
+              <li>Roughly one thread per CPU core handles all requests, via events and callbacks.</li>
+              <li>No thread is dedicated to any one connection, so holding a connection open is cheap.</li>
+              <li>That makes persistent, long-lived connections viable at scale — the actual goal, across "more than 83 million members," each with multiple devices.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <p>The migration was hard for a reason worth keeping: most of Zuul 2's build effort went into tracking down assumptions of blocking behavior baked into existing libraries — thread-local variables that silently break once multiple requests share one thread — rather than writing the async gateway itself.</p>
+
+      <div class="callout">
+        <span class="label">what the migration actually delivered — in Netflix's own words</span>
+        <p>This is worth including precisely because it's not a clean win. Netflix expected async to bring both efficiency <em>and</em> resiliency gains, and says plainly that results didn't match that hypothesis evenly. Measured across their own Zuul clusters:</p>
+        <table class="field-table">
+          <tr><th>cluster</th><th>measured effect of async (Zuul 2)</th></tr>
+          <tr><td>API (CPU-bound: metrics, decryption, compression)</td><td>no meaningful efficiency gain — essentially equivalent to blocking Zuul 1</td></tr>
+          <tr><td>Logging (I/O-heavy, less on-box work)</td><td>~25% increase in throughput, ~25% reduction in CPU use</td></tr>
+        </table>
+        <p>Their own conclusion: the less CPU-bound work a given service actually does, the more efficiency async buys you — not a universal win. The one gain that held everywhere was connection scaling, which was the actual goal of the migration in the first place.</p>
+      </div>
+
+      <h3>GraphQL Federation: from one API to many owned services</h3>
+      <p>Zuul solved <em>getting into</em> the mesh of services. A separate, later problem emerged around Spring 2019: a single monolithic API service, with every team's request-handling logic living in the same codebase — workable at first, increasingly hard to own and scale as more teams needed to add to it.</p>
+
+      <div class="evolution">
+        <div class="evolution-title">API architecture: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before (monolithic API)</span>
+            <ul>
+              <li>One API service handled requests for every team's data.</li>
+              <li>All request-handling logic lived in one shared codebase.</li>
+              <li>Any team's change meant touching the same central service.</li>
+            </ul>
+          </div>
+          <div class="after">
+            <span class="stage-label">after (Federated GraphQL, 2019 onward)</span>
+            <ul>
+              <li>A <strong>Federated Gateway</strong> is the single entry point clients query.</li>
+              <li>Behind it, many small <strong>Domain Graph Services (DGS)</strong> each own one slice ("subgraph") of the data.</li>
+              <li>The gateway stitches every team's subgraph into one unified graph for the client.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <p>Netflix built and later open-sourced (2021) their own <strong>DGS Framework</strong> — a Java/Spring Boot toolkit specifically for building these DGS services and plugging them into the federated graph. The gateway uses a schema registry to know which DGS to route each part of an incoming query to. The rollout started with Studio (internal production-tooling) applications, then expanded to migrating their Streaming APIs, and — as of their most recent published update — a prototype of the same approach for the consumer app's search page on iOS and Android.</p>
+
+      <div class="callout">
+        <span class="label">confirmed vs. widely reported</span>
+        <p>The architecture, motivation, and rollout sequence above are from Netflix's own TechBlog posts. The specific scale figure — "more than 150 services" now part of the graph — comes from an InfoQ article, not Netflix's own domain, so it's tagged <code class="inline">press</code> below rather than <code class="inline">official</code>, even though it reads as Netflix-authored content.</p>
+      </div>
+
+      <h3>Titus: running the containers underneath everything else</h3>
+      <p>Zuul routes requests and the GraphQL layer organizes ownership, but neither one actually runs any code. Every service still needs somewhere to physically execute — some machine, somewhere, actually running it. That's <strong>Titus</strong>: Netflix's own platform for running services as containers. Development began in 2015, back when container orchestration (as a whole category of tooling) was still new industry-wide — there wasn't yet an obvious, mature off-the-shelf choice to just adopt.</p>
+
+      <p>Here's what each piece of the architecture actually does:</p>
+      <ul>
+        <li><strong>Titus Master</strong> — the scheduler. Its job is deciding <em>where</em> each container should run. It's "leader-elected," meaning several copies of it run at once for redundancy, but only one is actively in charge at a time — if that one fails, another takes over.</li>
+        <li><strong>Titus Agents</strong> — the actual worker machines (EC2 virtual machines). Once the Master decides a container should run on a given Agent, that Agent is what actually starts it, keeps it running, and manages its lifecycle day to day.</li>
+        <li><strong>Zookeeper</strong> — handles the "only one Master is in charge" part: it's what the Master copies use to agree on which one of them is currently the leader.</li>
+        <li><strong>Cassandra</strong> — stores the Master's data (what's running, where) durably, so that state survives even if the active Master instance goes down.</li>
+      </ul>
+      <p>Titus itself is built as a layer on top of <strong>Apache Mesos</strong> — a separate system that handles the lower-level job of tracking which machines exist and what resources (CPU, memory) are free on each one. Mesos hands Titus that raw resource information; Titus Master is the part that decides what to actually do with it.</p>
+
+      <div class="evolution">
+        <div class="evolution-title">Titus scale &amp; scope: growth over time</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">2015 &ndash; early stage</span>
+            <ul>
+              <li>Built initially to support batch workloads.</li>
+              <li>Container use was in the thousands of launches per week.</li>
+            </ul>
+          </div>
+          <div class="after">
+            <span class="stage-label">by April 2018 (open-source announcement)</span>
+            <ul>
+              <li>Extended to run services applications too — including customer-facing, business-critical ones.</li>
+              <li>Growth to as many as <strong>three million containers launched per week</strong>.</li>
+              <li>Powers streaming, recommendations/ML, big data, content encoding, and Studio technology workloads.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <h3>Spinnaker: how changes actually get deployed</h3>
+      <p><strong>Spinnaker</strong> is Netflix's continuous-delivery platform — the mechanism for actually shipping a change into this infrastructure. Teams build <strong>pipelines</strong> made of composable <strong>stages</strong> — baking a machine image, deploying to a cloud provider, running a test job, a manual approval gate — that can be triggered manually, on a schedule, by another pipeline, or by a CI job completing.</p>
+
+      <div class="evolution">
+        <div class="evolution-title">deployment tooling: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before &mdash; Asgard</span>
+            <p>Netflix's earlier internal deployment tool, built for AWS only. Widely reported (not from Netflix's own TechBlog directly) to have run into limits once teams wanted multi-cloud support and permission-gated deployments rather than an internal-only tool.</p>
+          </div>
+          <div class="after">
+            <span class="stage-label">after &mdash; Spinnaker (open-sourced 2015)</span>
+            <p>A pluggable, multi-cloud continuous-delivery platform, built with Google, Microsoft, and Pivotal as partners so it could deploy to AWS, Google Cloud, and Cloud Foundry alike, not just Netflix's own AWS footprint.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>A few years later, Spinnaker had grown to deploy <strong>over 95% of Netflix's AWS infrastructure</strong> — hundreds of microservices, thousands of deployments a day — with built-in integrations to Chaos Monkey, the Chaos Automation Platform (ChAP), and Titus.</p>
+
+      <h3>Eureka: service discovery — how one service finds another</h3>
+      <p>One piece is still missing: once Titus has placed a service's containers somewhere, how does any other service know where to find it? That's the general problem of <strong>service discovery</strong> — services can't be given a fixed, hardcoded address, because Titus can reschedule their containers elsewhere at any time. Netflix's answer is <strong>Eureka</strong>, its service registry: services register their current location in Eureka, and other services query it instead of relying on a fixed address. Its own GitHub repository describes it as an AWS-oriented "service registry for resilient mid-tier load balancing and failover," playing a critical role in Netflix's mid-tier infrastructure.</p>
+
+      <div class="callout">
+        <span class="label">confirmed vs. widely reported</span>
+        <p>Netflix's own documentation for Eureka is comparatively thin next to Zuul or Titus — mostly a short GitHub description. The general mechanics below (services register themselves on startup, other services query the registry instead of using hardcoded addresses, registry data is replicated peer-to-peer for resilience) are standard, widely-documented service-discovery patterns as commonly implemented with Eureka — not drawn from a detailed Netflix engineering write-up the way most of this page is.</p>
+      </div>
+
+      <div class="refs">
+        <span class="label">references</span>
+        <ol>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/zuul-2-the-netflix-journey-to-asynchronous-non-blocking-systems-45947377fb5c" target="_blank" rel="noopener">"Zuul 2: The Netflix Journey to Asynchronous, Non-Blocking Systems"</a>, 2016 — source for Zuul's responsibilities, the Zuul 1 → Zuul 2 architecture change, the migration difficulty, and the measured per-cluster results.</li>
+          <li><span class="src-tag">official</span><a href="https://github.com/Netflix/zuul/" target="_blank" rel="noopener">Netflix/zuul</a> — the open-source repository, confirming Zuul's role as an L7 application gateway providing dynamic routing, monitoring, resiliency, and security.</li>
+          <li><span class="src-tag">official</span><a href="https://github.com/Netflix/zuul/wiki" target="_blank" rel="noopener">Netflix/zuul wiki</a> — source for the pre/route/post/error filter-type pipeline.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/open-sourcing-the-netflix-domain-graph-service-framework-graphql-for-spring-boot-92b9dcecda18" target="_blank" rel="noopener">"Open Sourcing the Netflix Domain Graph Service Framework: GraphQL for Spring Boot"</a> — source for the DGS Framework, its purpose, and the Spring 2019 start of the federated migration.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/how-netflix-scales-its-api-with-graphql-federation-part-2-bbe71aaec44a" target="_blank" rel="noopener">"Scaling Netflix's API via GraphQL Federation (Part 2)"</a> — source for the Streaming API migration and the consumer-app search page prototype.</li>
+          <li><span class="src-tag">press</span><a href="https://www.infoq.com/articles/federated-GraphQL-platform-Netflix/" target="_blank" rel="noopener">"Evolving the Federated GraphQL Platform at Netflix"</a>, InfoQ — source for the DGS/schema-registry mechanics and the "150+ services" scale figure.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/titus-the-netflix-container-management-platform-is-now-open-source-f868c9fb5436" target="_blank" rel="noopener">"Titus, the Netflix container management platform, is now open source"</a>, 2018 — source for Titus's growth from batch-only to services workloads, and the thousands→3 million containers/week figure.</li>
+          <li><span class="src-tag">official</span><a href="https://github.com/Netflix/titus/blob/master/docs/docs/overview.md" target="_blank" rel="noopener">Netflix/titus overview docs</a> — source for the Titus Master/Agent architecture, Mesos foundation, Zookeeper and Cassandra roles.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/global-continuous-delivery-with-spinnaker-2a6896c23ba7" target="_blank" rel="noopener">"Global Continuous Delivery with Spinnaker"</a>, 2015 — source for Spinnaker's pipeline/stage model and multi-cloud, multi-partner design.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/multi-cloud-continuous-delivery-with-spinnaker-report-now-available-6040ba83b765" target="_blank" rel="noopener">"Multi-Cloud Continuous Delivery with Spinnaker report now available"</a> — source for the 95%+ AWS deployment figure and Chaos Monkey/ChAP/Titus integrations.</li>
+          <li><span class="src-tag">press</span><a href="https://thenewstack.io/netflix-built-spinnaker-high-velocity-continuous-delivery-platform/" target="_blank" rel="noopener">"How Netflix Built Spinnaker"</a>, The New Stack — source for Spinnaker succeeding the earlier Asgard tool and why.</li>
+          <li><span class="src-tag">official</span><a href="https://github.com/Netflix/eureka" target="_blank" rel="noopener">Netflix/eureka</a> — Netflix's own description of Eureka's purpose in its mid-tier infrastructure.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 6 ============ -->
+    <section class="chapter" id="data-platforms">
+      <span class="eyebrow">06 &middot; where state actually lives</span>
+      <h2>Data &amp; streaming platforms</h2>
+
+      <p>Every service in Chapter 5 needs two things this chapter covers: somewhere to keep its state, and somewhere to send the flood of events every interaction generates — a play, a pause, a scroll, a search. So this chapter is about exactly two problems: getting fast access to stored data, and moving huge volumes of events in near real time. Neither one is Open Connect's video-byte pipeline from chapters 2–3 — this is data about behavior and state, not the video itself.</p>
+
+      <h3>EVCache: a cache in front of the database</h3>
+      <p>There's a three-layer pattern here: <strong>in-memory, backed by EVCache, backed by Cassandra (or S3)</strong>. "Backed by" means each layer falls back to the next when it doesn't have what's needed:</p>
+      <ul>
+        <li>A service checks its own <strong>in-memory</strong> cache first — inside the running process itself. Fastest possible, but tiny and gone on restart.</li>
+        <li>Not there? Check <strong>EVCache</strong> next — a separate, shared cache. Still fast (low milliseconds), but not permanent.</li>
+        <li>Not there either? Fall all the way back to <strong>Cassandra</strong> (or S3) — the durable source of truth, but comparatively slow: hundreds of milliseconds at the 99th percentile.</li>
+      </ul>
+      <p>Whatever gets fetched from Cassandra typically gets written back into EVCache on the way out, so the next request for the same thing doesn't have to pay that slow cost again. <strong>EVCache</strong> is the shared layer in the middle — a distributed, in-memory caching system built on memcached, open-sourced by Netflix, that exists specifically to keep most requests out of Cassandra's slower path.</p>
+
+      <p>Two words in EVCache's own name are the design philosophy: <strong>Ephemeral</strong> (data expires on a set TTL) and <strong>Volatile</strong> (an entry can be evicted at any time). Netflix is explicit that this is a deliberate trade: EVCache is a "best effort" cache — the data can become inconsistent — and the architecture chooses speed over consistency, on the assumption that applications using it can tolerate that.</p>
+
+      <div class="callout">
+        <span class="label">how it's actually built</span>
+        <p>An <strong>EVCache Server</strong> is just an EC2 instance running memcached alongside a Java "sidecar" application — and that sidecar's job includes registering with <strong>Eureka</strong> (the same service registry from Chapter 5) and reporting metrics. Data is sharded across nodes using consistent hashing, and replicated across AWS availability zones — three full copies, per the published figure. Reads default to the same zone as the caller specifically to avoid cross-zone data transfer fees, as a side effect of the zone-affinity design.</p>
+      </div>
+
+      <p>A concrete before/after Netflix has published: viewing history storage, keyed by customer ID.</p>
+
+      <div class="evolution">
+        <div class="evolution-title">viewing history storage: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before &mdash; Cassandra only</span>
+            <p>Writes performed well, but read latency was a problem — every read went straight to Cassandra, with no faster path in front of it.</p>
+          </div>
+          <div class="after">
+            <span class="stage-label">after &mdash; EVCache in front, chunked</span>
+            <p>An EVCache layer, keyed by customer ID, added in front of Cassandra. Entries too large for one cache slot were split into chunks, with metadata stored alongside the first chunk.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>The published results for this specific change: roughly <strong>6&times;</strong> smaller storage footprint, <strong>13&times;</strong> less Cassandra maintenance overhead, <strong>5&times;</strong> faster average reads, and <strong>1.5&times;</strong> faster average writes.</p>
+
+      <h3>Keystone: moving events in near real time</h3>
+      <p>Separately from durable storage, Netflix needs to move an enormous volume of behavioral events — every play, pause, scroll, and search, from every device — somewhere useful, quickly. That system is <strong>Keystone</strong>, and it has its own documented before/after (sourced below, so the attribution isn't repeated line by line).</p>
+
+      <div class="evolution">
+        <div class="evolution-title">event pipeline: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before &mdash; Chukwa</span>
+            <p>Netflix's earlier event-transport system. Its key limitation was straightforward: no replication, which meant weaker durability guarantees.</p>
+          </div>
+          <div class="after">
+            <span class="stage-label">after &mdash; Kafka-based Keystone</span>
+            <p>Kafka replaced Chukwa specifically because it supports replication, plus a stronger, more active open-source community around it.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>The resulting architecture runs two tiers of Kafka clusters: <strong>Fronting Kafka</strong>, which every application instance at Netflix writes events into first (ingestion and buffering), and <strong>Consumer Kafka</strong>, holding a routed subset of topics for real-time consumers to read from. A separate routing service moves data from fronting Kafka out to various destinations — S3, Elasticsearch, or a secondary Kafka cluster.</p>
+
+      <div class="callout">
+        <span class="label">an honest tradeoff, in Netflix's own words</span>
+        <p>Worth including because it's a real engineering decision stated plainly rather than glossed over: Netflix's own Keystone team wrote that guaranteeing lossless delivery, at their data volume, would be "cost prohibitive" to run on AWS EC2. Their response wasn't to chase zero data loss regardless of cost — it was to negotiate an acceptable amount of loss with the teams depending on the pipeline, and introduce tiered guarantees (some topics run with only one replica, accepting the risk of loss if a broker fails, specifically to save cost and reduce state that has to be coordinated).</p>
+      </div>
+
+      <div class="refs">
+        <span class="label">references</span>
+        <ol>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/announcing-evcache-distributed-in-memory-datastore-for-cloud-c26a698c27f7" target="_blank" rel="noopener">"Announcing EVCache: Distributed in-memory datastore for Cloud"</a> — source for EVCache's architecture: EVCache Server/sidecar, Eureka registration, consistent hashing, cross-zone replication.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/ephemeral-volatile-caching-in-the-cloud-8eba7b124589" target="_blank" rel="noopener">"Ephemeral Volatile Caching in the cloud"</a> — source for the in-memory/EVCache/Cassandra layering pattern and EVCache's design goals.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/caching-for-a-global-netflix-7bcc457012f1" target="_blank" rel="noopener">"Caching for a Global Netflix. #CachesEverywhere"</a> — source for EVCache's role and the "best effort" speed-over-consistency framing.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/scaling-time-series-data-storage-part-i-ec2b6d44ba39" target="_blank" rel="noopener">"Scaling Time Series Data Storage — Part I"</a> — source for the viewing-history before/after and the published 6×/13×/5×/1.5× figures.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/evolution-of-the-netflix-data-pipeline-da246ca36905" target="_blank" rel="noopener">"Evolution of the Netflix Data Pipeline"</a> — source for the Chukwa → Kafka transition and the stated reasoning.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="http://techblog.netflix.com/2016/04/kafka-inside-keystone-pipeline.html" target="_blank" rel="noopener">"Kafka Inside Keystone Pipeline"</a> — source for the Fronting/Consumer Kafka split and the cost-vs-durability tradeoff.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/keystone-real-time-stream-processing-platform-a3ee651812a" target="_blank" rel="noopener">"Keystone Real-time Stream Processing Platform"</a> — source for Keystone's Data Pipeline / SPaaS structure and the routing service's role.</li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============ CHAPTER 7 ============ -->
+    <section class="chapter" id="resilience">
+      <span class="eyebrow">07 &middot; finding weaknesses on purpose</span>
+      <h2>Resilience engineering</h2>
+
+      <p>Every chapter so far has described a system built to keep working under failure — Open Connect's fallback OCAs, Zuul's circuit breaking, EVCache's tolerance for inconsistency. This chapter is about how Netflix actually verifies those claims: by deliberately causing real failures in production, on purpose, and watching what happens.</p>
+
+      <h3>Chaos Monkey and the Simian Army: instance and region failure</h3>
+      <p>Netflix's own founding description of <strong>Chaos Monkey</strong>: a tool that "randomly disables our production instances to make sure we can survive this common type of failure without any customer impact." It's run deliberately in the middle of a business day, in a monitored environment with engineers standing by — not at random hours — so that if it does surface a weakness, it's found under supervision rather than during a real unplanned outage.</p>
+
+      <table class="field-table">
+        <tr><th>tool</th><th>what it breaks</th></tr>
+        <tr><td>Chaos Monkey</td><td>a single production instance</td></tr>
+        <tr><td>Chaos Gorilla</td><td>an entire AWS availability zone</td></tr>
+        <tr><td>Chaos Kong</td><td>an entire AWS region</td></tr>
+      </table>
+      <p>Each escalation tests a bigger assumption: that traffic automatically re-balances onto what's still healthy, without a human needing to intervene, and without customers noticing.</p>
+
+      <h3>FIT → ChAP: from manual failure injection to automated experiments</h3>
+      <p>The tools above break infrastructure — instances, zones, regions. A different, later problem: what if the failure is inside one specific microservice's logic, not the infrastructure under it? <strong>FIT</strong> (Failure Injection Testing) was the earlier tool built to inject that kind of microservice-level failure into production. <strong>ChAP</strong> (Chaos Automation Platform) came after, built specifically to overcome FIT's limits on safety, cadence, and how broadly experiments could run.</p>
+
+      <div class="evolution">
+        <div class="evolution-title">microservice-level chaos: before → after</div>
+        <div class="evolution-grid">
+          <div class="before">
+            <span class="stage-label">before &mdash; FIT</span>
+            <p>Could inject failure into a specific microservice in production, but running experiments this way was limited in safety, cadence, and breadth.</p>
+          </div>
+          <div class="after">
+            <span class="stage-label">after &mdash; ChAP</span>
+            <p>An orchestration layer on top of FIT: automatically provisions a real experiment, routes a small slice of live traffic into it, and reports results — safely and repeatably enough to run often.</p>
+          </div>
+        </div>
+      </div>
+
+      <p>How a ChAP experiment actually runs:</p>
+      <ul>
+        <li>ChAP provisions two clusters of the target service via <strong>Spinnaker</strong> (Chapter 5) — a <strong>control</strong> group and an <strong>experiment</strong> group.</li>
+        <li><strong>Zuul</strong> (Chapter 5) routes a small slice of real production traffic to each of the two groups.</li>
+        <li>A specified failure scenario — a dependency slowing down, or returning errors — is injected only into the experiment group, using hooks in common libraries services already share (RPC clients, <strong>Hystrix</strong>, Cassandra/EVCache clients).</li>
+        <li>Results from both groups are compared and reported back to the service's own owning team.</li>
+      </ul>
+
+      <div class="callout">
+        <span class="label">safety guardrails, not just "run it and see"</span>
+        <p>ChAP experiments run under explicit bounds on how much of the system they can touch: only during business hours, with the combined traffic affected across all concurrently running experiments capped at a small share of a region's total traffic, and automatic abort if customer impact exceeds a set threshold. An early figure from Netflix's own ChAP work: diverting as little as <strong>0.3% of traffic</strong> into an experiment. The metric watched most closely: video stream starts per second (SPS) — a direct proxy for "are people actually able to start watching."</p>
+      </div>
+
+      <p>The stated payoff: using ChAP, Netflix has safely identified things like mistuned retry policies, CPU-intensive fallback logic, and unexpected interactions between circuit breakers and load balancers — the kind of subtle, cross-component bugs that are hard to find any other way, because the code paths involved (fallback behavior) barely get exercised outside of a real failure.</p>
+
+      <div class="refs">
+        <span class="label">references</span>
+        <ol>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="http://techblog.netflix.com/2011/07/netflix-simian-army.html" target="_blank" rel="noopener">"The Netflix Simian Army"</a>, 2011 — source for Chaos Monkey's original description, its deliberate business-hours operation, and Chaos Gorilla.</li>
+          <li><span class="src-tag">official</span>Netflix TechBlog, <a href="https://netflixtechblog.com/chap-chaos-automation-platform-53e6d528371f" target="_blank" rel="noopener">"ChAP: Chaos Automation Platform"</a>, 2018 — source for the FIT → ChAP relationship and the experiment/control cluster mechanism.</li>
+          <li><span class="src-tag">official</span>A. Basiri et al., <a href="https://arxiv.org/pdf/1905.04648" target="_blank" rel="noopener">"Automating Chaos Experiments in Production"</a>, ICSE-SEIP 2019 — Netflix-authored academic paper; source for the fault-injection library hooks (Hystrix, RPC clients, EVCache) and failure-mode framing (slowdown vs. error).</li>
+          <li><span class="src-tag">official</span>A. Basiri, A. Blohowiak, L. Hochstein, C. Rosenthal, <a href="https://arxiv.org/pdf/1702.05849" target="_blank" rel="noopener">"A Platform for Automating Chaos Experiments"</a>, ISSREW 2016 — Netflix-authored academic paper; source for the Spinnaker/Zuul integration, the 0.3% traffic figure, and stream-starts-per-second as the primary health metric.</li>
+        </ol>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="log-modal-backdrop" id="mi-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="log-modal">
+    <div class="log-modal-header">
+      <h4>chrome://media-internals &mdash; a real capture</h4>
+      <button class="log-modal-close" onclick="document.getElementById('mi-modal').classList.remove('open')">close &#10005;</button>
+    </div>
+    <p class="log-modal-sub">Trimmed from an actual Netflix playback session, captured on the page linked in Chrome's own media debugging tool.</p>
+
+    <div class="log-modal-grid">
+      <div class="log-left">
+        <div class="log-col-label">Annotated fields</div>
+        <div class="log-field">
+          <code>"key_system": "com.widevine.alpha"</code>
+          <p>Confirms Widevine specifically for this session — one of the three DRM systems from this chapter's field table.</p>
+        </div>
+        <div class="log-field">
+          <code>"use_hw_secure_codecs": false</code>
+          <p>This session is running the software decrypt path, not the hardware-secured (TEE-backed, Widevine L1) tier discussed earlier in this chapter.</p>
+        </div>
+        <div class="log-field">
+          <code>video: "encryption scheme": "CBCS"  &middot;  audio: "Unencrypted"</code>
+          <p>DRM isn't applied uniformly — only the video track was encrypted in this capture; the audio track was not.</p>
+        </div>
+        <div class="log-field">
+          <code>"info": "video stream is encrypted with clear lead"</code>
+          <p>A standard DRM/CMAF technique: the very first moment of a segment is left unencrypted so playback starts instantly, while the license request runs in parallel instead of blocking startup.</p>
+        </div>
+        <div class="log-field">
+          <code>pipeline_state: kPlaying &rarr; kSuspending &rarr; kSuspended &rarr; kResuming &rarr; kPlaying</code>
+          <p>After a pause, Chrome waits roughly 45&ndash;60 seconds, then fully tears down the decoder pipeline to save memory and battery. Resuming rebuilds it from scratch &mdash; the audio/video decoder selection logic runs again, identical to first startup.</p>
+        </div>
+        <div class="log-field">
+          <code>"video_track_selected": "unset" &rarr; "4" &rarr; "unset"</code>
+          <p>A live capture of this chapter's adaptive engine actually switching bitrate rungs mid-session &mdash; direct, real-world confirmation of the mechanism described above, not just a documented claim.</p>
+        </div>
+      </div>
+
+      <div class="log-right">
+        <div class="log-col-label">Full raw capture (JSON)</div>
+        <div class="log-raw">
+        <pre id="raw-json-block">{
+  "properties": {
+    "render_id": 95,
+    "player_id": 5,
+    "created": "2026-09-18 06:55:44.579296 UTC",
+    "origin_url": "https://www.netflix.com/",
+    "kFrameUrl": "https://www.netflix.com/watch/80021956?trackId=264163088&amp;tctx=%2C%2Ca89d50a2-c409-4613-8fc2-1aeb4e02fc60-19273936%2CeyJwYWdlSWQiOiJQU19lODE0YjVjNC1kZmIyLTRmZjctODg4OS0zODRjY2E0Y2U0YWNfTDFfTjEiLCJzZWN0aW9uSWQiOiJlZDFlYTlhYS1jZmI4LTQzMTctOWNhMi1iMzRlMGZlNzdhNzYiLCJpZHgiOi05OTl9%2CPS_e814b5c4-dfb2-4ff7-8889-384cca4ce4ac_L1_N1%2C%2C%2C%2C%2CVideo%3A80021955%2C",
+    "kFrameTitle": "Netflix",
+    "url": "blob:https://www.netflix.com/bb5d611e-d221-462d-ae89-837f0df7d486",
+    "info": "video stream is encrypted with clear lead",
+    "kRendererName": "RendererImpl",
+    "pipeline_state": "kPlaying",
+    "kVideoTracks": [
+      {
+        "alpha mode": "is_opaque",
+        "codec": "av1",
+        "coded size": "1280x720",
+        "color space": { "matrix": "BT709", "primaries": "BT709", "range": "LIMITED", "transfer": "BT709" },
+        "encryption scheme": "CBCS",
+        "has extra data": false,
+        "hdr metadata": {},
+        "natural size": "1280x720",
+        "orientation": "0&deg;",
+        "profile": "av1 profile main",
+        "visible rect": "0,0 1280x720"
+      }
+    ],
+    "kAudioTracks": [
+      {
+        "bytes per channel": 2, "bytes per frame": 4, "channel layout": "STEREO", "channels": 2,
+        "codec": "aac", "codec delay": 0, "discard decoder delay": false, "encryption scheme": "Unencrypted",
+        "has extra data": true, "profile": "xhe-aac", "sample format": "Signed 16-bit",
+        "samples per second": 48000, "seek preroll": "0us"
+      }
+    ],
+    "kSetCdm": {
+      "allow_distinctive_identifier": false, "allow_persistent_state": true,
+      "key_system": "com.widevine.alpha", "use_hw_secure_codecs": false
+    },
+    "kIsCdmAttached": true,
+    "kIsAudioDecryptingDemuxerStream": false,
+    "kAudioDecoderName": "AudioToolboxAudioDecoder",
+    "kIsPlatformAudioDecoder": true,
+    "kIsVideoDecryptingDemuxerStream": false,
+    "kVideoDecoderName": "DecryptingVideoDecoder",
+    "kIsPlatformVideoDecoder": false,
+    "dimensions": "1280x720",
+    "kResolution": "1280x720",
+    "duration": 3190.187,
+    "video_buffering_state": { "state": "BUFFERING_HAVE_ENOUGH" },
+    "audio_buffering_state": { "state": "BUFFERING_HAVE_ENOUGH" },
+    "pipeline_buffering_state": { "for_suspended_start": false, "state": "BUFFERING_HAVE_ENOUGH" },
+    "event": "kPlay",
+    "video_track_selected": "unset"
+  },
+  "events": [
+    { "time": 0, "key": "created", "value": "2026-09-18 06:55:44.579296 UTC" },
+    { "time": 0.073, "key": "origin_url", "value": "https://www.netflix.com/" },
+    { "time": 0.077, "key": "kFrameUrl", "value": "https://www.netflix.com/watch/80021956?trackId=264163088&amp;tctx=..." },
+    { "time": 0.078, "key": "kFrameTitle", "value": "Netflix" },
+    { "time": 0.119, "key": "url", "value": "blob:https://www.netflix.com/bb5d611e-d221-462d-ae89-837f0df7d486" },
+    { "time": 0.127, "key": "info", "value": "ChunkDemuxer" },
+    { "time": 0.137, "key": "kRendererName", "value": "RendererImpl" },
+    { "time": 0.188, "key": "pipeline_state", "value": "kStarting" },
+    { "time": 10.662, "key": "kVideoTracks", "value": [{ "codec": "av1", "coded size": "1280x720", "encryption scheme": "CBCS", "profile": "av1 profile main" }] },
+    { "time": 10.702, "key": "kAudioTracks", "value": [{ "codec": "aac", "encryption scheme": "Unencrypted", "channels": 2, "samples per second": 48000 }] },
+    { "time": 63.823, "key": "kSetCdm", "value": { "allow_persistent_state": true, "key_system": "com.widevine.alpha", "use_hw_secure_codecs": false } },
+    { "time": 63.888, "key": "kIsCdmAttached", "value": true },
+    { "time": 64.452, "key": "info", "value": "Cannot select SymphoniaAudioDecoder for audio decoding. status=kUnsupportedCodec" },
+    { "time": 64.459, "key": "info", "value": "Cannot select IamfAudioDecoder for audio decoding. status=kUnsupportedCodec" },
+    { "time": 64.461, "key": "info", "value": "Cannot select OpusAudioDecoder for audio decoding. status=kUnsupportedConfig" },
+    { "time": 64.466, "key": "info", "value": "Cannot select FFmpegAudioDecoder for audio decoding. status=kUnsupportedProfile" },
+    { "time": 65.065, "key": "kIsAudioDecryptingDemuxerStream", "value": false },
+    { "time": 65.072, "key": "kAudioDecoderName", "value": "AudioToolboxAudioDecoder" },
+    { "time": 65.073, "key": "kIsPlatformAudioDecoder", "value": true },
+    { "time": 65.792, "key": "kIsVideoDecryptingDemuxerStream", "value": false },
+    { "time": 65.792, "key": "kVideoDecoderName", "value": "DecryptingVideoDecoder" },
+    { "time": 65.793, "key": "kIsPlatformVideoDecoder", "value": false },
+    { "time": 65.807, "key": "pipeline_state", "value": "kPlaying" },
+    { "time": 65.818, "key": "info", "value": "video stream is encrypted with clear lead" },
+    { "time": 68.13, "key": "dimensions", "value": "1280x720" },
+    { "time": 68.132, "key": "kResolution", "value": "1280x720" },
+    { "time": 210.397, "key": "info", "value": "Effective playback rate changed from 0 to 1" },
+    { "time": 10.684, "key": "duration", "value": 3190.187 },
+    { "time": 71.999, "key": "video_buffering_state", "value": { "state": "BUFFERING_HAVE_ENOUGH" } },
+    { "time": 66.762, "key": "audio_buffering_state", "value": { "state": "BUFFERING_HAVE_ENOUGH" } },
+    { "time": 72.013, "key": "pipeline_buffering_state", "value": { "for_suspended_start": false, "state": "BUFFERING_HAVE_ENOUGH" } },
+    { "time": 210.422, "key": "event", "value": "kPlay" },
+    { "time": 6558.565, "key": "event", "value": "kPause" },
+    { "time": 51145.865, "key": "pipeline_state", "value": "kSuspending" },
+    { "time": 51146.187, "key": "pipeline_state", "value": "kSuspended" },
+    { "time": 51148.433, "key": "event", "value": "kSuspended" },
+    { "time": 61180.372, "key": "video_track_selected", "value": "unset" },
+    { "time": 117983.678, "key": "video_track_selected", "value": "4" },
+    { "time": 123983.176, "key": "event", "value": "kPlay" },
+    { "time": 123983.211, "key": "kRendererName", "value": "RendererImpl" },
+    { "time": 123983.234, "key": "pipeline_state", "value": "kResuming" },
+    { "time": 123989.829, "key": "kIsAudioDecryptingDemuxerStream", "value": false },
+    { "time": 123989.831, "key": "kAudioDecoderName", "value": "AudioToolboxAudioDecoder" },
+    { "time": 123990.38, "key": "kIsVideoDecryptingDemuxerStream", "value": false },
+    { "time": 123990.381, "key": "kVideoDecoderName", "value": "DecryptingVideoDecoder" },
+    { "time": 123990.397, "key": "pipeline_state", "value": "kPlaying" },
+    { "time": 123990.409, "key": "info", "value": "video stream is encrypted with clear lead" },
+    { "time": 124059.628, "key": "dimensions", "value": "1280x720" },
+    { "time": 124064.518, "key": "video_buffering_state", "value": { "state": "BUFFERING_HAVE_ENOUGH" } },
+    { "time": 134161.543, "key": "event", "value": "kPause" },
+    { "time": 196986.148, "key": "pipeline_state", "value": "kSuspending" },
+    { "time": 196986.415, "key": "pipeline_state", "value": "kSuspended" },
+    { "time": 196986.427, "key": "event", "value": "kSuspended" },
+    { "time": 216052.732, "key": "event", "value": "kPlay" },
+    { "time": 216052.789, "key": "pipeline_state", "value": "kResuming" },
+    { "time": 216059.225, "key": "pipeline_state", "value": "kPlaying" },
+    { "time": 216059.236, "key": "info", "value": "video stream is encrypted with clear lead" },
+    { "time": 216103.26, "key": "dimensions", "value": "1280x720" },
+    { "time": 216107.287, "key": "video_buffering_state", "value": { "state": "BUFFERING_HAVE_ENOUGH" } },
+    { "time": 226427.758, "key": "video_track_selected", "value": "unset" },
+    { "time": 226428.348, "key": "video_buffering_state", "value": { "state": "BUFFERING_HAVE_ENOUGH" } },
+    { "time": 226428.355, "key": "pipeline_buffering_state", "value": { "for_suspended_start": false, "state": "BUFFERING_HAVE_ENOUGH" } }
+  ]
+}</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var el = document.getElementById('raw-json-block');
+    if (!el) return;
+    el.innerHTML = el.innerHTML.replace(/"([^"\n]+)":/g, '<span class="jkey">"$1"</span>:');
+  })();
+</script>
+
+</body>
+</html>

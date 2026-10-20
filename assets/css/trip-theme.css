@@ -1,0 +1,129 @@
+/*
+ * Re-skins the standalone trip pages (trips/*) with the site's look: dark ground,
+ * violet/cyan/amber/pink accents, glass panels, Inter + Instrument Serif and the ambient 3D scene.
+ * Loaded after each page's own <style>, so it only remaps variables and overrides surfaces.
+ * Specificity (:root:root:root) beats the pages' light/dark/data-theme rules, so the site look always wins.
+ */
+:root:root:root {
+  color-scheme: dark;
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+
+  --bg: #07080d;
+  --ink: #eceef6;
+  --muted: #9aa0b5;
+  --paper: #07080d;
+  --cream: #07080d;
+  --panel: rgba(12, 14, 24, 0.72);
+  --line: rgba(255, 255, 255, 0.1);
+  --line-soft: rgba(255, 255, 255, 0.06);
+  --nav-bg: rgba(7, 8, 13, 0.7);
+  --on-accent: #07080d;
+  --img-filter: brightness(0.9) saturate(1.05);
+
+  --leaf: #4fe3d1;
+  --leaf-deep: #b6f5ec;
+  --leaf-soft: rgba(79, 227, 209, 0.14);
+  --turmeric: #ffb86b;
+  --turmeric-soft: rgba(255, 184, 107, 0.14);
+  --amber-ink: #ffd3a1;
+  --chili: #ff7eb6;
+  --chili-soft: rgba(255, 126, 182, 0.14);
+  --chili-ink: #ffc2dc;
+}
+
+html:root { background: #07080d; scroll-behavior: smooth; }
+html:root body { background: transparent; color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; }
+::selection { background: rgba(139, 123, 255, 0.45); }
+
+/* backdrop: same layers as the main site */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(60% 50% at 70% 25%, rgba(255, 126, 182, 0.14), transparent 70%),
+    radial-gradient(50% 40% at 15% 85%, rgba(79, 227, 209, 0.08), transparent 70%),
+    #07080d;
+}
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: 90; pointer-events: none; opacity: 0.05; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; z-index: -1; pointer-events: none; opacity: 0; transition: opacity 1.6s ease; }
+.has-3d.ready #scene { opacity: 0.7; }
+
+/* one look: the old light/dark toggle goes away */
+.theme-toggle { display: none !important; }
+
+/* fonts */
+.sans, .head-font, .route-svg text, .eyebrow, .day-badge, .day-head .dnum, .day-head .theme, .daynav a, .fact-label, .fact-value,
+.day-strip, .stop .time, .stop h3, .stop p, .dine-item .dname, .dine-item .dtag, .dine-item p, .tip h4, .tip p, .hotel-facts .hf-row,
+.skip-note, .transit-note, .map-label, .route-caption, .foot, .log-link .ll-eyebrow, .log-link .ll-sub, .stop-num, .stop-loc, .progress, header p.sub, .highlight p {
+  font-family: var(--sans) !important;
+}
+.hero h1, .day-head h2, .kbyg h2, .log-link .ll-title, .dine-box .dine-head h3, header h1, .segment-title, .highlight h3, .summary-line {
+  font-family: var(--display) !important; font-weight: 400 !important; letter-spacing: -0.015em;
+}
+.hero h1, header h1 { font-size: clamp(44px, 9vw, 76px) !important; line-height: 1 !important; color: var(--ink) !important; }
+.day-head h2 { font-size: clamp(30px, 5vw, 40px) !important; color: var(--ink) !important; }
+.kbyg h2 { font-size: clamp(30px, 5vw, 40px) !important; color: var(--ink) !important; }
+.summary-line { font-size: 22px !important; font-style: italic; color: var(--chili) !important; }
+.segment-title { font-size: 26px !important; color: var(--ink) !important; }
+.log-link .ll-title, .dine-box .dine-head h3 { color: var(--ink) !important; font-size: 24px !important; }
+.hero .dates, header .eyebrow { color: var(--leaf) !important; }
+header .eyebrow { letter-spacing: 0.18em; }
+.stop p, .dine-item p, .tip p, .stop-body p { opacity: 0.82; }
+
+/* eyebrow pill -> site-style mono label */
+.hero .eyebrow { background: transparent; color: var(--chili); border: 1px solid rgba(255, 126, 182, 0.4); }
+
+/* glass surfaces */
+.map-frame, .facts, .dine-box, .log-link, .tip, .stop-card, .highlight {
+  background: var(--panel) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 18px !important;
+  backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3);
+  box-shadow: 0 30px 70px -45px #000;
+}
+.tip { border-left-width: 3px !important; border-radius: 14px !important; }
+.highlight { background: rgba(255, 184, 107, 0.1) !important; border-color: rgba(255, 184, 107, 0.35) !important; }
+.highlight h3 { color: var(--amber-ink) !important; }
+.highlight p { color: #e9d9c3 !important; }
+.dine-box::before, .log-link::before { height: 3px; background: linear-gradient(90deg, var(--leaf), var(--turmeric), var(--chili)); }
+.log-link { transition: border-color 0.3s, transform 0.4s cubic-bezier(0.2, 0.7, 0.1, 1), box-shadow 0.4s; }
+.log-link:hover, .log-link:focus-visible { border-color: rgba(79, 227, 209, 0.55) !important; transform: translateY(-3px); box-shadow: 0 30px 70px -35px rgba(79, 227, 209, 0.45); }
+.stop-num { color: #07080d; }
+.stop-card:nth-of-type(n) .stop-num { color: var(--ink) !important; }
+
+/* nav + dividers */
+.daynav { background: var(--nav-bg); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); border-bottom: 1px solid var(--line); }
+.daynav .wrap { max-width: 1000px; padding-top: 12px; padding-bottom: 12px; }
+.daynav .nav-links {
+  gap: 4px; justify-content: safe center; padding: 2px 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 36px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 20px, #000 calc(100% - 36px), transparent 100%);
+}
+.daynav a, .daynav a:nth-child(n) {
+  background: transparent !important; color: var(--muted, #9aa0b5) !important;
+  font-size: 13px; font-weight: 500; letter-spacing: 0; padding: 7px 14px; border: 1px solid transparent;
+  transition: color 0.25s, background 0.25s, border-color 0.25s;
+}
+.daynav a:hover { filter: none; color: var(--ink) !important; background: rgba(255, 255, 255, 0.06) !important; }
+.daynav a.active {
+  color: var(--ink) !important; background: rgba(255, 126, 182, 0.16) !important; border-color: rgba(255, 126, 182, 0.4);
+}
+@media (max-width: 700px) { .daynav .nav-links { justify-content: flex-start; } }
+.day, .kbyg { border-top: 1px solid var(--line) !important; }
+.schedule::before { background: var(--line) !important; width: 1px; }
+.stop .time { color: var(--leaf) !important; }
+.day-head .dnum { color: var(--chili) !important; }
+.day-badge { background: linear-gradient(135deg, #8b7bff, #4fe3d1) !important; color: #07080d !important; }
+.day-head .theme { border: 1px solid rgba(255, 184, 107, 0.3); }
+.hotel-facts .hf-label, .day-strip .d { color: var(--leaf) !important; }
+.route-caption { color: var(--ink); }
+.foot { color: var(--leaf) !important; }
+
+@media print { #scene, body::before, body::after, .site-home { display: none !important; } }
+@media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } html { scroll-behavior: auto; } }
+
+/* trip log card under the title */
+.hero .log-link { margin-top: 26px; }

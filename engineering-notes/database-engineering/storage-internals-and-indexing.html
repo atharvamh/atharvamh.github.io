@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storage Internals &amp; Indexing — Database Engineering Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ============ TOKENS ============ */
+:root{
+  --paper:#12151C;
+  --panel:#1A1F29;
+  --ink:#E7EAF1;
+  --ink-soft:#AAB2C2;
+  --ink-faint:#727C8D;
+  --line:#2B3140;
+  --line-soft:#232936;
+
+  --write:#DD8452;      /* mutation / danger / write-path */
+  --write-soft:#2B211B;
+  --write-line:#6B4732;
+
+  --read:#4FB3A0;       /* snapshot / read-path / safe */
+  --read-soft:#16241F;
+  --read-line:#31584F;
+
+  --code-bg:#0C0F16;
+  --code-ink:#E7ECF3;
+  --code-line:#242C3D;
+
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --sidebar-w: 272px;
+  --content-w: 700px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--read); text-decoration:none;}
+a:hover{text-decoration:underline;}
+a:focus-visible, button:focus-visible, summary:focus-visible{
+  outline:2px solid var(--read);
+  outline-offset:2px;
+}
+
+/* ============ LAYOUT ============ */
+.layout{
+  display:grid;
+  grid-template-columns: var(--sidebar-w) minmax(0,1fr);
+  max-width:1180px;
+  margin:0 auto;
+}
+
+/* ---- Sidebar ---- */
+.sidebar{
+  padding:40px 28px 40px 32px;
+  position:sticky;
+  top:0;
+  align-self:start;
+  height:100vh;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+}
+.sidebar-back{
+  display:inline-block;
+  font-size:13px;
+  color:var(--ink-faint);
+  margin-bottom:28px;
+}
+.sidebar-back:hover{color:var(--read);}
+.sidebar-title{
+  font-family:var(--serif);
+  font-size:19px;
+  font-weight:600;
+  line-height:1.3;
+  margin:0 0 4px;
+  color:var(--ink);
+}
+.sidebar-sub{
+  font-size:13px;
+  color:var(--ink-faint);
+  margin:0 0 30px;
+}
+.toc-module{
+  margin-bottom:22px;
+}
+.toc-module-label{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:0 0 8px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--line-soft);
+}
+.toc-module ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.toc-module li{
+  margin:0;
+}
+.toc-link{
+  display:block;
+  position:relative;
+  padding:6px 0 6px 14px;
+  font-size:13.5px;
+  color:var(--ink-soft);
+  border-left:2px solid transparent;
+  transition:border-color .15s ease, color .15s ease;
+}
+.toc-link:hover{ color:var(--ink); text-decoration:none;}
+.toc-link.active{
+  color:var(--ink);
+  font-weight:600;
+  border-left-color:var(--read);
+}
+
+/* ---- Main content ---- */
+main{
+  padding:56px 48px 120px;
+  min-width:0;
+}
+.doc{
+  max-width:var(--content-w);
+}
+.doc-header{
+  margin-bottom:56px;
+}
+.doc-header .kicker{
+  font-size:13.5px;
+  color:var(--ink-faint);
+  margin:0 0 10px;
+}
+h1.doc-title{
+  font-family:var(--serif);
+  font-size:40px;
+  font-weight:600;
+  line-height:1.15;
+  letter-spacing:-.01em;
+  margin:0 0 16px;
+  color:var(--ink);
+}
+.doc-dek{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin:0;
+}
+
+.module-flag{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:15px;
+  color:var(--ink-faint);
+  margin:64px 0 6px;
+}
+.module-flag:first-of-type{margin-top:0;}
+
+section.card{
+  margin-bottom:64px;
+  scroll-margin-top:32px;
+}
+h2.sec-title{
+  font-family:var(--serif);
+  font-size:28px;
+  font-weight:600;
+  line-height:1.25;
+  margin:0 0 22px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line);
+  color:var(--ink);
+}
+h3.sub-title{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:600;
+  margin:36px 0 12px;
+  color:var(--ink);
+}
+h4.mini-title{
+  font-size:14.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:22px 0 8px;
+}
+p{margin:0 0 16px;}
+ul,ol{margin:0 0 16px; padding-left:22px;}
+li{margin-bottom:6px;}
+strong{color:var(--ink); font-weight:600;}
+em{color:var(--ink-soft);}
+
+code{
+  font-family:var(--mono);
+  font-size:.86em;
+  background:var(--line-soft);
+  padding:.15em .4em;
+  border-radius:3px;
+  color:var(--ink);
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  padding:16px 18px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  border:1px solid var(--code-line);
+}
+pre code{
+  background:none;
+  padding:0;
+  color:inherit;
+  font-size:13.5px;
+  line-height:1.6;
+}
+
+/* ---- Problem / Solution pairing ---- */
+.case{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+  margin:22px 0 26px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+@media(min-width:640px){
+  .case{ grid-template-columns:1fr 1fr; }
+}
+.case > div{ padding:18px 20px; }
+.case .problem{
+  background:var(--write-soft);
+  border-left:3px solid var(--write);
+}
+.case .solution{
+  background:var(--read-soft);
+  border-left:3px solid var(--read);
+}
+@media(min-width:640px){
+  .case .problem{ border-right:1px solid var(--line); }
+}
+.case .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+.case .problem .label{ color:var(--write); }
+.case .solution .label{ color:var(--read); }
+.case p:last-child{ margin-bottom:0; }
+
+/* ---- Note / callout (margin-note style) ---- */
+.note{
+  margin:20px 0 26px;
+  padding:2px 0 2px 18px;
+  border-left:3px solid var(--line);
+}
+.note.write{ border-left-color:var(--write); }
+.note.read{ border-left-color:var(--read); }
+.note .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink-faint);
+  margin-bottom:6px;
+}
+.note p{ margin-bottom:8px; color:var(--ink-soft); }
+.note p:last-child{ margin-bottom:0; }
+
+/* ---- Tables ---- */
+.table-wrap{
+  overflow-x:auto;
+  margin:20px 0 28px;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+table{
+  border-collapse:collapse;
+  width:100%;
+  font-size:14px;
+}
+th, td{
+  padding:11px 14px;
+  text-align:left;
+  border-bottom:1px solid var(--line-soft);
+  vertical-align:top;
+}
+thead th{
+  background:var(--panel);
+  font-weight:600;
+  font-size:13px;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--line);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background:rgba(255,255,255,0.025); }
+td.cell-ok{ color:var(--read); font-weight:500; }
+td.cell-bad{ color:var(--write); font-weight:500; }
+table code{ font-size:.82em; }
+
+/* ---- Diagrams ---- */
+figure.diagram{
+  margin:26px 0 30px;
+  padding:22px 20px 18px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+}
+figure.diagram svg{ display:block; width:100%; height:auto; }
+figcaption{
+  font-size:12.5px;
+  color:var(--ink-faint);
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line-soft);
+}
+figcaption .swatch{
+  display:inline-block;
+  width:9px; height:9px;
+  border-radius:2px;
+  margin-right:5px;
+  position:relative;
+  top:1px;
+}
+
+/* svg helper classes (reference CSS vars) */
+.svg-write-fill{ fill:var(--write-soft); }
+.svg-write-line{ stroke:var(--write); }
+.svg-write-text{ fill:var(--write); }
+.svg-read-fill{ fill:var(--read-soft); }
+.svg-read-line{ stroke:var(--read); }
+.svg-read-text{ fill:var(--read); }
+.svg-ink-line{ stroke:var(--line); }
+.svg-ink-text{ fill:var(--ink); }
+.svg-soft-text{ fill:var(--ink-soft); }
+.svg-faint-text{ fill:var(--ink-faint); }
+.svg-panel{ fill:var(--panel); }
+.svg-mono{ font-family:var(--mono); }
+.svg-sans{ font-family:var(--sans); }
+
+hr.rule{
+  border:none;
+  border-top:1px solid var(--line);
+  margin:56px 0;
+}
+
+footer.doc-footer{
+  margin-top:70px;
+  padding-top:24px;
+  border-top:1px solid var(--line);
+  font-size:13.5px;
+  color:var(--ink-faint);
+}
+footer.doc-footer p{ margin:0 0 6px; }
+
+/* ---- Mobile toc toggle ---- */
+.mobile-toc-toggle{ display:none; }
+
+@media (max-width:900px){
+  .layout{ grid-template-columns:1fr; }
+  .sidebar{
+    position:static;
+    height:auto;
+    border-right:none;
+    border-bottom:1px solid var(--line);
+    padding:20px 24px;
+  }
+  .sidebar-inner{ display:none; }
+  .sidebar-inner.open{ display:block; padding-top:18px; }
+  .mobile-toc-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    background:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 14px;
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  main{ padding:36px 22px 90px; }
+  h1.doc-title{ font-size:30px; }
+  .case{ grid-template-columns:1fr; }
+  .case .problem{ border-right:none; border-bottom:1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{ scroll-behavior:auto; }
+  .toc-link{ transition:none; }
+}
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar" aria-label="Table of contents">
+    <a class="sidebar-back" href="/engineering-notes/database-engineering/">&larr; Database Engineering</a>
+    <p class="sidebar-title">Storage Internals &amp; Indexing</p>
+    <p class="sidebar-sub">Notebook</p>
+
+    <button class="mobile-toc-toggle" id="tocToggle" aria-expanded="false">
+      Contents <span aria-hidden="true">&#9662;</span>
+    </button>
+
+    <div class="sidebar-inner" id="sidebarInner">
+      <div class="toc-module">
+        <p class="toc-module-label">III. Storage Internals</p>
+        <ol>
+          <li><a class="toc-link" href="#s9" data-toc>Table &amp; Heap Internals</a></li>
+          <li><a class="toc-link" href="#s10" data-toc>B-Tree Indexing Internals</a></li>
+          <li><a class="toc-link" href="#s11" data-toc>Clustered vs. Heap Tables</a></li>
+          <li><a class="toc-link" href="#s12" data-toc>Row vs. Columnar Storage</a></li>
+        </ol>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="doc">
+
+      <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/database-engineering/">Database engineering</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Storage internals &amp; indexing</span></nav>
+      <header class="doc-header">
+        <p class="kicker">Database Engineering Notes</p>
+        <h1 class="doc-title">Storage Internals &amp; Indexing</h1>
+        <p class="doc-dek">How a table's rows actually sit on disk, why B+Trees won out over every other search tree, and why a single choice of primary key can make or break write throughput.</p>
+      </header>
+
+      <!-- ================================================= -->
+      <!-- MODULE III -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module III — Storage Internals</p>
+
+      <section class="card" id="s9">
+        <h2 class="sec-title">s9. Table &amp; Heap Internals (Pages &amp; Row IDs)</h2>
+        <p>A relational table is a logical abstraction. Underneath, the DBMS represents it as a collection of physical files on disk. To read, write, and index that data efficiently, the engine segments those files into fixed-size blocks called <strong>pages</strong>, and organizes rows inside structures called <strong>heaps</strong>.</p>
+
+        <h3 class="sub-title">📦 The Core Elements of Storage Architecture</h3>
+
+        <h4 class="mini-title">1. The Page / Block — the I/O atom</h4>
+        <p>A <strong>page</strong> (or block) is the atomic unit of database disk I/O. Databases never read or write individual rows from a drive — they retrieve and commit entire pages containing those rows, typically <code>8 KB</code> in PostgreSQL and <code>16 KB</code> in MySQL InnoDB. Even a single-row index lookup pulls the whole physical page into the buffer pool first.</p>
+
+        <h4 class="mini-title">2. Heap storage vs. index-organized tables</h4>
+        <p>A <strong>heap</strong> is an unordered collection of pages, where rows are written wherever free space happens to exist — physical sort order is ignored entirely. PostgreSQL tables are strict heaps. InnoDB tables, by contrast, are <strong>index-organized</strong> (clustered indexes): rows are physically ordered and stored directly inside the primary key's leaf nodes.</p>
+
+        <h4 class="mini-title">3. Physical row IDs — <code>ctid</code>, TID, <code>DB_ROW_ID</code></h4>
+        <p>Every row has an internal physical address — the <strong>row ID</strong> — represented as a coordinate: <code>(page number, tuple slot offset)</code>. A Postgres <code>ctid</code> of <code>(4, 12)</code> means "go to page 4, read the 12th row pointer." Indexes store these physical row IDs as leaf values, to locate raw rows in the heap.</p>
+
+        <div class="note write">
+          <span class="label">THE ROW MIGRATION PROBLEM (WRITE AMPLIFICATION)</span>
+          <p>Update a variable-length field — say, <code>'Bob'</code> grows into a much longer string — and the row expands. If its page is already full, the row no longer fits in its original slot.</p>
+          <p><strong>The risk:</strong> if the engine physically migrates the row to a new page, every index entry that points to its old physical coordinate breaks, forcing an expensive rewrite across every index.</p>
+        </div>
+
+        <h4 class="mini-title">The indirection layer: slotted page architecture</h4>
+        <p>Modern engines protect against this with a <strong>slotted page layout</strong> inside every block:</p>
+        <ul>
+          <li><strong>Page header</strong> — metadata: page offsets, free-space pointer, transaction boundaries.</li>
+          <li><strong>Line pointer array (slot array)</strong> — grows forward from just after the header. Each entry is a lightweight pointer to a row's actual byte offset.</li>
+          <li><strong>Tuple payloads</strong> — the row byte arrays themselves, written backward from the end of the page.</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 660 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d9title">
+            <title id="d9title">Slotted page layout: header and slot array grow forward from the start of the page, tuple payloads grow backward from the end, with free space shrinking between them</title>
+
+            <text x="20" y="22" class="svg-sans svg-faint-text" font-size="11" font-weight="600">SLOTTED PAGE LAYOUT — ONE 8&#160;KB PAGE</text>
+
+            <rect x="20" y="38" width="620" height="90" rx="6" class="svg-panel svg-ink-line" stroke-width="1.3"/>
+
+            <!-- header -->
+            <rect x="20" y="38" width="86" height="90" class="svg-ink-line" fill="none" stroke-width="1"/>
+            <text x="63" y="70" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5" font-weight="600">Page</text>
+            <text x="63" y="83" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5" font-weight="600">Header</text>
+            <text x="63" y="98" text-anchor="middle" class="svg-sans svg-faint-text" font-size="8.5">free-space ptr</text>
+
+            <!-- slot array -->
+            <rect x="106" y="38" width="34" height="90" class="svg-read-fill" stroke="none"/>
+            <rect x="140" y="38" width="34" height="90" class="svg-read-fill" stroke="none" opacity="0.7"/>
+            <rect x="174" y="38" width="34" height="90" class="svg-read-fill" stroke="none" opacity="0.45"/>
+            <line x1="106" y1="38" x2="106" y2="128" class="svg-read-line" stroke-width="1"/>
+            <line x1="208" y1="38" x2="208" y2="128" class="svg-read-line" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="123" y="65" text-anchor="middle" class="svg-sans svg-read-text" font-size="8.5" font-weight="600">Slot 0</text>
+            <text x="123" y="77" text-anchor="middle" class="svg-mono svg-soft-text" font-size="7.5">&#8594;7600</text>
+            <text x="157" y="90" text-anchor="middle" class="svg-sans svg-read-text" font-size="8.5" font-weight="600">Slot 1</text>
+            <text x="157" y="102" text-anchor="middle" class="svg-mono svg-soft-text" font-size="7.5">&#8594;7300</text>
+            <text x="191" y="112" text-anchor="middle" class="svg-sans svg-read-text" font-size="8.5" font-weight="600">Slot 2</text>
+            <text x="191" y="124" text-anchor="middle" class="svg-mono svg-soft-text" font-size="7.5">&#8594;7000</text>
+
+            <!-- free space -->
+            <rect x="208" y="38" width="200" height="90" fill="none"/>
+            <text x="308" y="86" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">&#8592; free space &#8594;</text>
+            <text x="308" y="100" text-anchor="middle" class="svg-sans svg-faint-text" font-size="8.5">shrinks as both sides grow</text>
+
+            <!-- tuple data -->
+            <rect x="408" y="38" width="80" height="90" class="svg-write-fill" stroke="none" opacity="0.45"/>
+            <rect x="488" y="38" width="76" height="90" class="svg-write-fill" stroke="none" opacity="0.7"/>
+            <rect x="564" y="38" width="76" height="90" class="svg-write-fill" stroke="none"/>
+            <line x1="408" y1="38" x2="408" y2="128" class="svg-write-line" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="448" y="65" text-anchor="middle" class="svg-sans svg-write-text" font-size="8.5" font-weight="600">Row C</text>
+            <text x="448" y="77" text-anchor="middle" class="svg-mono svg-soft-text" font-size="7.5">off 7000</text>
+            <text x="526" y="90" text-anchor="middle" class="svg-sans svg-write-text" font-size="8.5" font-weight="600">Row B</text>
+            <text x="526" y="102" text-anchor="middle" class="svg-mono svg-soft-text" font-size="7.5">off 7300</text>
+            <text x="601" y="112" text-anchor="middle" class="svg-sans svg-write-text" font-size="8.5" font-weight="600">Row A</text>
+            <text x="601" y="124" text-anchor="middle" class="svg-mono svg-soft-text" font-size="7.5">off 7600, end</text>
+
+            <!-- connector: slot1 to row B -->
+            <path d="M 157,128 C 157,150 526,150 526,148" fill="none" class="svg-read-line" stroke-width="1.2" stroke-dasharray="3 2"/>
+            <polygon points="526,148 522,141 530,141" fill="var(--read)"/>
+
+            <text x="123" y="160" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9">slot points to a byte offset, not a fixed row</text>
+
+            <line x1="20" y1="196" x2="208" y2="196" class="svg-read-line" stroke-width="1.4"/>
+            <polygon points="208,196 200,192 200,200" fill="var(--read)"/>
+            <text x="20" y="212" class="svg-sans svg-read-text" font-size="10">Slot array grows forward &#8594;</text>
+
+            <line x1="640" y1="196" x2="452" y2="196" class="svg-write-line" stroke-width="1.4"/>
+            <polygon points="452,196 460,192 460,200" fill="var(--write)"/>
+            <text x="640" y="212" text-anchor="end" class="svg-sans svg-write-text" font-size="10">&#8592; Tuple data grows backward</text>
+
+            <text x="330" y="240" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">If Row B moves, only Slot 1's offset is rewritten — external index pointers to (Page, Slot 1) stay valid.</text>
+          </svg>
+          <figcaption><span class="swatch" style="background:var(--read)"></span>Slots are the indirection layer &nbsp;·&nbsp; <span class="swatch" style="background:var(--write)"></span>tuple bytes are free to move underneath them.</figcaption>
+        </figure>
+
+        <div class="note">
+          <span class="label">ENGINEERING NOTE</span>
+          <p>Because of this indirection, if Row B is updated and shrinks or relocates <em>inside the same page</em>, only its Slot 1 offset needs updating. External index maps that reference <code>(Page, Slot 1)</code> remain completely valid and untouched.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s10">
+        <h2 class="sec-title">s10. B-Tree &amp; B+Tree Indexing Internals</h2>
+        <p>Querying a table with no index forces a full table scan — every page gets pulled into memory, and disk I/O becomes the bottleneck. <strong>Indexes</strong> solve this by building a structured routing table. In transactional systems, the standard implementation is the <strong>B+Tree</strong>.</p>
+
+        <h3 class="sub-title">Why Not a Binary Search Tree?</h3>
+        <p>The reasons databases avoid plain BSTs or red-black trees are purely physical:</p>
+        <ul>
+          <li><strong>Tree depth &amp; disk spanning</strong> — a BST branches at most 2 ways. Indexing 1,000,000 rows needs <code>log&#8322; 1,000,000 &#8776; 20</code> levels. Since each parent-child link can point to a completely different disk page, finding one key could mean 20 random disk reads.</li>
+          <li><strong>No page alignment</strong> — a BST node holds just one key and two child pointers, wasting almost all of an 8 KB page's capacity and fragmenting memory badly.</li>
+        </ul>
+
+        <h3 class="sub-title">The Solution: Shallow Depth, High Fan-Out</h3>
+        <p>A B+Tree is a self-balancing tree built around large, page-aligned blocks, using two distinct node types:</p>
+        <ul>
+          <li><strong>Internal nodes (routing guides)</strong> — hold only search keys and child pointers, no row data at all. This maximizes fan-out: a routing page holding 500 keys gives a branching factor of <code>B = 500</code>.</li>
+          <li><strong>Leaf nodes (data anchors)</strong> — hold the actual index key values, paired with physical row IDs (or, in a clustered InnoDB table, the full row itself).</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 660 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d10title">
+            <title id="d10title">B+Tree structure: a routing root with no data pointing down to leaf nodes, which are linked together for fast range scans</title>
+
+            <text x="20" y="22" class="svg-sans svg-faint-text" font-size="11" font-weight="600">B+TREE — ROUTING NODES ON TOP, DATA ONLY IN LEAVES</text>
+
+            <rect x="255" y="36" width="150" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.3"/>
+            <text x="330" y="55" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11" font-weight="600">Root (internal)</text>
+            <text x="330" y="70" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9">keys: 30 | 70</text>
+
+            <line x1="290" y1="82" x2="130" y2="118" class="svg-ink-line" stroke-width="1.2"/>
+            <line x1="330" y1="82" x2="330" y2="118" class="svg-ink-line" stroke-width="1.2"/>
+            <line x1="370" y1="82" x2="530" y2="118" class="svg-ink-line" stroke-width="1.2"/>
+
+            <rect x="60" y="120" width="140" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="130" y="139" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5" font-weight="600">Internal</text>
+            <text x="130" y="154" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9">keys: 10 | 20</text>
+
+            <rect x="260" y="120" width="140" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="330" y="139" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5" font-weight="600">Internal</text>
+            <text x="330" y="154" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9">keys: 40 | 50</text>
+
+            <rect x="460" y="120" width="140" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="530" y="139" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5" font-weight="600">Internal</text>
+            <text x="530" y="154" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9">keys: 80 | 90</text>
+
+            <line x1="130" y1="166" x2="130" y2="196" class="svg-ink-line" stroke-width="1.1"/>
+            <line x1="330" y1="166" x2="330" y2="196" class="svg-ink-line" stroke-width="1.1"/>
+            <line x1="530" y1="166" x2="530" y2="196" class="svg-ink-line" stroke-width="1.1"/>
+
+            <rect x="40" y="198" width="160" height="48" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.3"/>
+            <text x="120" y="216" text-anchor="middle" class="svg-sans svg-read-text" font-size="10" font-weight="600">Leaf</text>
+            <text x="120" y="230" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">key 12 &#8594; ctid(2,4)</text>
+
+            <rect x="250" y="198" width="160" height="48" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.3"/>
+            <text x="330" y="216" text-anchor="middle" class="svg-sans svg-read-text" font-size="10" font-weight="600">Leaf</text>
+            <text x="330" y="230" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">key 42 &#8594; ctid(5,2)</text>
+
+            <rect x="460" y="198" width="160" height="48" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.3"/>
+            <text x="540" y="216" text-anchor="middle" class="svg-sans svg-read-text" font-size="10" font-weight="600">Leaf</text>
+            <text x="540" y="230" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">key 91 &#8594; ctid(9,1)</text>
+
+            <line x1="200" y1="222" x2="250" y2="222" class="svg-read-line" stroke-width="1.4"/>
+            <polygon points="250,222 243,218 243,226" fill="var(--read)"/>
+            <polygon points="200,222 207,218 207,226" fill="var(--read)"/>
+            <line x1="410" y1="222" x2="460" y2="222" class="svg-read-line" stroke-width="1.4"/>
+            <polygon points="460,222 453,218 453,226" fill="var(--read)"/>
+            <polygon points="410,222 417,218 417,226" fill="var(--read)"/>
+
+            <text x="330" y="256" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9.5">leaves linked as a doubly-linked list — range scans walk sideways, never back up the tree</text>
+          </svg>
+          <figcaption>3 hops from root to any leaf, no matter how many rows — that's what a branching factor of 500 buys you.</figcaption>
+        </figure>
+
+        <p>Since every payload lives in the leaves, internal nodes stay light and fan-out stays huge. A B+Tree with <code>B = 500</code> can index millions of keys in just 3 levels — capping physical page lookups at 3 hops.</p>
+
+        <h3 class="sub-title">B-Tree vs. B+Tree</h3>
+        <div class="case">
+          <div class="problem">
+            <span class="label">STANDARD B-TREE</span>
+            <p>Stores records in <em>both</em> internal and leaf nodes. That leaves far less room for routing keys per internal node, so the tree grows deeper and needs more disk reads. Range queries are slow too — the engine must traverse up and down between nodes.</p>
+          </div>
+          <div class="solution">
+            <span class="label">MODERN B+TREE</span>
+            <p>Keeps data exclusively in leaves, and links every leaf together sequentially via a doubly-linked list. A range scan (<code>WHERE balance &gt; 100</code>) walks down once to find the start, then scans sideways through linked leaves — no further tree traversal needed.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="s11">
+        <h2 class="sec-title">s11. Clustered vs. Heap Tables</h2>
+        <p>A critical fork in physical storage design is the choice between <strong>heap-based storage</strong> (PostgreSQL's native model) and <strong>clustered indexes / index-organized tables</strong> (MySQL InnoDB's native model). Your primary key's data type — auto-incrementing integer vs. random UUID — has completely opposite performance implications depending on which model you're on.</p>
+
+        <h3 class="sub-title">📊 Structural Comparison</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Property</th><th>Heap tables (PostgreSQL)</th><th>Clustered-index tables (InnoDB)</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Physical ordering</strong></td>
+                <td>Unordered — rows land wherever free space exists</td>
+                <td>Strictly sorted by primary key</td>
+              </tr>
+              <tr>
+                <td><strong>PK leaf value</strong></td>
+                <td>The row ID (<code>ctid</code>/TID) — a physical address</td>
+                <td>The actual complete row — every column embedded in the tree</td>
+              </tr>
+              <tr>
+                <td><strong>Secondary index leaf value</strong></td>
+                <td>The physical row ID — a direct read of the target page</td>
+                <td>The primary key value — forces a second lookup to fetch the row</td>
+              </tr>
+              <tr>
+                <td><strong>Row address stability</strong></td>
+                <td>Volatile — a row's coordinate can shift if it moves inside a page</td>
+                <td>Volatile — rows physically relocate across pages during index splits</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">📌 Direct Lookup vs. Double Lookup</h3>
+        <figure class="diagram">
+          <svg viewBox="0 0 660 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d11title">
+            <title id="d11title">PostgreSQL resolves a secondary index in one hop via ctid; InnoDB requires a second traversal through the primary key's clustered index</title>
+            <text x="20" y="20" class="svg-sans svg-faint-text" font-size="11" font-weight="600">FIGURE A — POSTGRES (DIRECT HOP)</text>
+            <text x="340" y="20" class="svg-sans svg-faint-text" font-size="11" font-weight="600">FIGURE B — INNODB (DOUBLE LOOKUP)</text>
+            <line x1="330" y1="8" x2="330" y2="210" class="svg-ink-line" stroke-width="1"/>
+
+            <!-- A -->
+            <rect x="20" y="42" width="130" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="85" y="62" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5" font-weight="600">Sec. index</text>
+            <text x="85" y="76" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">email &#8594; ctid(5,2)</text>
+
+            <line x1="150" y1="65" x2="188" y2="65" class="svg-read-line" stroke-width="1.4"/>
+            <polygon points="188,65 180,61 180,69" fill="var(--read)"/>
+            <text x="169" y="56" text-anchor="middle" class="svg-read-text" font-size="9" font-weight="600">1 hop</text>
+
+            <rect x="190" y="42" width="130" height="46" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.3"/>
+            <text x="255" y="62" text-anchor="middle" class="svg-sans svg-read-text" font-size="10.5" font-weight="600">Heap page 5</text>
+            <text x="255" y="76" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">slot 2 &#8594; full row</text>
+
+            <text x="20" y="130" class="svg-sans svg-soft-text" font-size="10">Secondary index points straight at physical storage.</text>
+            <text x="20" y="146" class="svg-sans svg-soft-text" font-size="10">Fast — but every row move updates every index.</text>
+
+            <!-- B -->
+            <rect x="340" y="42" width="120" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="400" y="62" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5" font-weight="600">Sec. index</text>
+            <text x="400" y="76" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">email &#8594; pk 42</text>
+
+            <line x1="460" y1="65" x2="490" y2="65" class="svg-write-line" stroke-width="1.4"/>
+            <polygon points="490,65 482,61 482,69" fill="var(--write)"/>
+            <text x="475" y="56" text-anchor="middle" class="svg-write-text" font-size="9" font-weight="600">hop 1</text>
+
+            <rect x="492" y="42" width="130" height="46" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.3"/>
+            <text x="557" y="60" text-anchor="middle" class="svg-sans svg-write-text" font-size="10" font-weight="600">Clustered PK</text>
+            <text x="557" y="74" text-anchor="middle" class="svg-sans svg-soft-text" font-size="8.5">B+Tree traversal</text>
+
+            <line x1="557" y1="88" x2="557" y2="110" class="svg-write-line" stroke-width="1.4"/>
+            <polygon points="557,110 553,102 561,102" fill="var(--write)"/>
+            <text x="580" y="102" text-anchor="middle" class="svg-write-text" font-size="9" font-weight="600">hop 2</text>
+
+            <rect x="470" y="112" width="152" height="46" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.3"/>
+            <text x="546" y="132" text-anchor="middle" class="svg-sans svg-write-text" font-size="10" font-weight="600">Leaf = full row</text>
+            <text x="546" y="146" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">id 42, email, balance</text>
+
+            <text x="340" y="180" class="svg-sans svg-soft-text" font-size="10">Every secondary lookup re-traverses the tree.</text>
+            <text x="340" y="196" class="svg-sans svg-soft-text" font-size="10">Slower reads — but row moves never break an index.</text>
+          </svg>
+          <figcaption><span class="swatch" style="background:var(--read)"></span>Direct physical hop &nbsp;·&nbsp; <span class="swatch" style="background:var(--write)"></span>logical hop via the primary key, then a second traversal.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">The Random UUID Clustered-Index Trap</h3>
+        <div class="note write">
+          <span class="label">THE PROBLEM</span>
+          <p>Insert rows with a fully random primary key (UUIDv4) into an InnoDB table, and three things go wrong at once:</p>
+          <ul>
+            <li><strong>Continuous page splits</strong> — an unsorted key lands mid-page. If that 16 KB page is full, the engine must split it, moving half its rows to a new page.</li>
+            <li><strong>Heavy random writes</strong> — instead of appending sequentially, the engine reads random uncached pages into RAM, writes, and flushes back — causing disk-head thrashing.</li>
+            <li><strong>Bloated secondary indexes</strong> — since InnoDB secondary indexes store the PK value at leaf level, a 36-character UUID primary key makes every secondary index far larger.</li>
+          </ul>
+        </div>
+
+        <h4 class="mini-title">The Fix: Sequential Keys &amp; Postgres's Natural Immunity</h4>
+        <ul>
+          <li><strong>Sequential keys for clustered tables</strong> — use auto-incrementing integers, or a sortable format like <strong>UUIDv7</strong> (which embeds a millisecond timestamp at the front). New rows land sequentially at the end of the tree, and page splits disappear.</li>
+          <li><strong>PostgreSQL's heap-append advantage</strong> — since Postgres is heap-based, a random UUID insert just appends to the active page — fast regardless of key order. The primary key's own B+Tree index can still split, but because its leaves only store a light 6-byte <code>ctid</code> (not the whole row), those splits are far cheaper than InnoDB's table-page splits.</li>
+        </ul>
+
+        <h4 class="mini-title">Why InnoDB Pays the Double-Lookup Cost</h4>
+        <div class="case">
+          <div class="solution">
+            <span class="label">POSTGRES DIRECT PATHWAY</span>
+            <p><code>secondary index &#8594; ctid &#8594; direct page read</code>. Fast single-hop reads. But if a row's physical location changes, every secondary index needs its <code>ctid</code> updated.</p>
+          </div>
+          <div class="problem">
+            <span class="label">INNODB DOUBLE-LOOKUP PATHWAY</span>
+            <p><code>secondary index &#8594; PK value &#8594; clustered B+Tree traversal &#8594; row</code>. If a row moves during a page split, secondary indexes don't break — they point at a logical key, not a physical address. The cost: every secondary lookup pays for two tree traversals.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="s12">
+        <h2 class="sec-title">s12. Row vs. Columnar Storage (OLTP vs. OLAP)</h2>
+        <p>A table is logically a two-dimensional grid, but physical storage — SSD or HDD — is a strictly one-dimensional array of bytes. Serializing a table onto that array means choosing an orientation: <strong>row-oriented</strong> (built for transactions) or <strong>columnar</strong> (built for analytics).</p>
+
+        <h3 class="sub-title">The Core Structural Difference</h3>
+        <ul>
+          <li><strong>Row-oriented (OLTP)</strong> — one page holds several complete rows; every column of a given row sits contiguously: <code>[Row1: A,B,C][Row2: A,B,C]</code>.</li>
+          <li><strong>Columnar (OLAP)</strong> — one page holds one column across thousands of rows: <code>Page A: [Row1.A, Row2.A, Row3.A]</code>, <code>Page B: [Row1.B, Row2.B, Row3.B]</code>.</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 660 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d12title">
+            <title id="d12title">Row-oriented pages force loading every column to sum one; columnar files let a scan touch only the column it needs</title>
+            <text x="20" y="20" class="svg-sans svg-faint-text" font-size="11" font-weight="600">ROW-ORIENTED (OLTP)</text>
+            <text x="340" y="20" class="svg-sans svg-faint-text" font-size="11" font-weight="600">COLUMNAR (OLAP)</text>
+            <line x1="330" y1="8" x2="330" y2="230" class="svg-ink-line" stroke-width="1"/>
+
+            <!-- row oriented -->
+            <rect x="20" y="38" width="290" height="50" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.3"/>
+            <text x="36" y="58" class="svg-sans svg-write-text" font-size="10.5" font-weight="600">Row 1</text>
+            <text x="36" y="74" class="svg-mono svg-soft-text" font-size="9">id:1 | email:'alice..' | bal:$100</text>
+
+            <rect x="20" y="96" width="290" height="50" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.3"/>
+            <text x="36" y="116" class="svg-sans svg-write-text" font-size="10.5" font-weight="600">Row 2</text>
+            <text x="36" y="132" class="svg-mono svg-soft-text" font-size="9">id:2 | email:'bob..' | bal:$250</text>
+
+            <text x="20" y="172" class="svg-sans svg-soft-text" font-size="10">SELECT SUM(balance) still loads id</text>
+            <text x="20" y="188" class="svg-sans svg-soft-text" font-size="10">and email bytes for every row.</text>
+            <text x="20" y="210" class="svg-sans svg-write-text" font-size="10" font-weight="600">Efficient writes, wasteful scans.</text>
+
+            <!-- columnar -->
+            <rect x="340" y="38" width="130" height="108" rx="6" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="405" y="58" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10" font-weight="600">email column</text>
+            <text x="405" y="76" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">'alice..'</text>
+            <text x="405" y="92" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">'bob..'</text>
+            <text x="405" y="108" text-anchor="middle" class="svg-mono svg-soft-text" font-size="8.5">'charlie..'</text>
+            <text x="405" y="130" text-anchor="middle" class="svg-faint-text" font-size="8.5">bypassed entirely</text>
+
+            <rect x="484" y="38" width="130" height="108" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.3"/>
+            <text x="549" y="58" text-anchor="middle" class="svg-sans svg-read-text" font-size="10" font-weight="600">balance column</text>
+            <text x="549" y="78" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9">100</text>
+            <text x="549" y="94" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9">250</text>
+            <text x="549" y="110" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9">50</text>
+            <text x="549" y="132" text-anchor="middle" class="svg-read-text" font-size="8.5" font-weight="600">SUM() reads only this file</text>
+
+            <text x="340" y="172" class="svg-sans svg-soft-text" font-size="10">Storage engine calculates the exact sector</text>
+            <text x="340" y="188" class="svg-sans svg-soft-text" font-size="10">range for balance and reads it sequentially.</text>
+            <text x="340" y="210" class="svg-sans svg-read-text" font-size="10" font-weight="600">Efficient scans, expensive single-row writes.</text>
+          </svg>
+          <figcaption><span class="swatch" style="background:var(--write)"></span>Row-oriented pays at scan time &nbsp;·&nbsp; <span class="swatch" style="background:var(--read)"></span>columnar pays at write time.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">OLAP on Row-Oriented: the I/O Bottleneck</h3>
+        <p>Run a warehousing query — an aggregate, an average, a group-by — against a row-oriented OLTP database, and performance degrades badly:</p>
+        <ul>
+          <li><strong>Massive I/O waste</strong> — averaging one column across 50,000,000 rows still pulls every column (IDs, descriptions, timestamps) into the buffer pool. Most of those bytes are discarded instantly.</li>
+          <li><strong>Buffer pool pollution</strong> — loading heavy rows to scan one column evicts valuable transactional pages from RAM, slowing down unrelated queries too.</li>
+        </ul>
+
+        <h3 class="sub-title">OLAP on Columnar: the Cure</h3>
+        <ul>
+          <li><strong>Direct sector sweeps</strong> — querying a single column means the engine reads only that column's file, sequentially. Every other column stays untouched.</li>
+          <li><strong>Heavy compression</strong> — a page filled with one data type compresses extremely well. Run-length encoding (<code>[100,100,100]</code> &#8594; <code>3x100</code>) or delta encoding can shrink storage by up to 90%.</li>
+        </ul>
+
+        <h3 class="sub-title">The Columnar Penalty</h3>
+        <div class="note write">
+          <span class="label">ROW RECONSTRUCTION &amp; WRITE COST</span>
+          <p><code>SELECT * FROM users WHERE id = 42</code> forces the engine to open a separate file per column, read slot 42 in each, and stitch the row back together in RAM — heavy random-seek latency. Inserting or updating one row means touching dozens of separate column files at once.</p>
+        </div>
+
+        <h3 class="sub-title">The OLTP Answer: Continuous Append</h3>
+        <p>To sustain high-throughput concurrent writes, OLTP engines keep every row's columns bundled together in one page — one atomic append per insert, and a point lookup lands directly on a slotted page where every column is already sitting side by side.</p>
+
+        <h3 class="sub-title">The Workload Divide</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Metric</th><th>Row-oriented (OLTP)</th><th>Columnar (OLAP)</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Primary workload</strong></td>
+                <td>High-throughput writes, updates, point lookups</td>
+                <td>BI reports, aggregate stats, data warehousing</td>
+              </tr>
+              <tr>
+                <td><strong>Query pattern</strong></td>
+                <td>Few rows, but most/all columns per row</td>
+                <td>Millions of rows, but only a few columns</td>
+              </tr>
+              <tr>
+                <td><strong>Compression</strong></td>
+                <td>Moderate — adjacent bytes vary in type</td>
+                <td>Very high — consecutive values share a type</td>
+              </tr>
+              <tr>
+                <td><strong>Write characteristics</strong></td>
+                <td>Efficient single-row inserts, no scattering</td>
+                <td>Slow single-row writes; built for batch loads</td>
+              </tr>
+              <tr>
+                <td><strong>Examples</strong></td>
+                <td>PostgreSQL, MySQL, SQLite, SQL Server</td>
+                <td>ClickHouse, Snowflake, BigQuery, Redshift</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <hr class="rule">
+
+      <footer class="doc-footer">
+        <p><a href="/engineering-notes/database-engineering/">&larr; Back to Database Engineering notes</a></p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // Mobile TOC toggle
+  var toggle = document.getElementById('tocToggle');
+  var inner = document.getElementById('sidebarInner');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = inner.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  // Scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('[data-toc]'));
+  var sections = links.map(function(l){
+    return document.getElementById(l.getAttribute('href').slice(1));
+  }).filter(Boolean);
+
+  if('IntersectionObserver' in window && sections.length){
+    var map = {};
+    links.forEach(function(l){ map[l.getAttribute('href').slice(1)] = l; });
+
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = map[entry.target.id];
+        if(!link) return;
+        if(entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>

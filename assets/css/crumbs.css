@@ -1,0 +1,22 @@
+/* One breadcrumb for every internal page: top-left of the content, above the title. */
+.crumbs {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px;
+  margin: 0 0 28px; padding: 0; list-style: none;
+  font: 500 13px/1.2 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #9aa0b5; text-align: left; letter-spacing: 0;
+}
+.crumbs a {
+  color: #9aa0b5; text-decoration: none; padding: 6px 0; border-bottom: 1px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+.crumbs a:hover, .crumbs a:focus-visible { color: #eceef6; border-bottom-color: #4fe3d1; }
+.crumbs .sep { opacity: 0.4; }
+.crumbs [aria-current="page"] { color: #eceef6; }
+@media print { .crumbs { display: none; } }
+
+/* variant for pages with their own theme (light or dark): follows the page's text colour */
+.crumbs.is-inherit { color: inherit; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; margin-bottom: 22px; }
+.crumbs.is-inherit a, .crumbs.is-inherit [aria-current="page"] { color: inherit; }
+.crumbs.is-inherit a { opacity: 0.65; }
+.crumbs.is-inherit a:hover, .crumbs.is-inherit a:focus-visible { opacity: 1; border-bottom-color: currentColor; }
+.crumbs.is-inherit [aria-current="page"] { font-weight: 600; }

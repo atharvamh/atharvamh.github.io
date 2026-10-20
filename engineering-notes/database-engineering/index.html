@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Database Engineering — Engineering Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+:root{
+  --paper:#12151C;
+  --panel:#1A1F29;
+  --ink:#E7EAF1;
+  --ink-soft:#AAB2C2;
+  --ink-faint:#727C8D;
+  --line:#2B3140;
+  --line-soft:#232936;
+
+  --write:#DD8452;
+  --write-soft:#2B211B;
+  --write-line:#6B4732;
+
+  --read:#4FB3A0;
+  --read-soft:#16241F;
+  --read-line:#31584F;
+
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--read); text-decoration:none;}
+a:focus-visible{ outline:2px solid var(--read); outline-offset:2px; }
+
+.wrap{
+  max-width:760px;
+  margin:0 auto;
+  padding:64px 24px 100px;
+}
+
+.back{
+  display:inline-block;
+  font-size:13px;
+  color:var(--ink-faint);
+  margin-bottom:34px;
+}
+.back:hover{ color:var(--read); text-decoration:underline; }
+
+.eyebrow{
+  font-size:13.5px;
+  color:var(--ink-faint);
+  margin:0 0 12px;
+}
+h1{
+  font-family:var(--serif);
+  font-size:42px;
+  font-weight:600;
+  line-height:1.15;
+  letter-spacing:-.01em;
+  margin:0 0 18px;
+  color:var(--ink);
+}
+.dek{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:56ch;
+  margin:0 0 56px;
+}
+
+.notebook-list{
+  border-top:1px solid var(--line);
+}
+.notebook{
+  display:grid;
+  grid-template-columns:52px 1fr;
+  gap:0 22px;
+  padding:32px 0;
+  border-bottom:1px solid var(--line);
+  transition:background .15s ease;
+}
+.notebook:hover{ background:rgba(255,255,255,0.015); }
+.notebook-num{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:26px;
+  color:var(--ink-faint);
+  padding-top:2px;
+}
+.notebook-body a.title-link{
+  color:var(--ink);
+}
+h2.notebook-title{
+  font-family:var(--serif);
+  font-size:23px;
+  font-weight:600;
+  margin:0 0 10px;
+  color:var(--ink);
+}
+.notebook:hover h2.notebook-title{ color:var(--read); text-decoration:underline; }
+.notebook-desc{
+  font-size:15px;
+  color:var(--ink-soft);
+  max-width:56ch;
+  margin:0;
+}
+
+@media (max-width:560px){
+  h1{ font-size:32px; }
+  .notebook{ grid-template-columns:1fr; gap:6px; }
+  .notebook-num{ display:none; }
+}
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+
+  <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Database engineering</span></nav>
+
+  <p class="eyebrow">Study Notes</p>
+  <h1>Database Engineering</h1>
+  <p class="dek">Notes on how a database actually works underneath the SQL — transactions, storage, indexing, and the tradeoffs engines make to keep both fast and correct.</p>
+
+  <div class="notebook-list">
+
+    <a class="notebook" href="/engineering-notes/database-engineering/transactions-and-concurrency.html" style="text-decoration:none; display:grid;">
+      <span class="notebook-num">I</span>
+      <div class="notebook-body">
+        <h2 class="notebook-title">ACID, Transactions &amp; Concurrency</h2>
+        <p class="notebook-desc">How a database keeps its promises when things crash, and how it keeps those promises without making every transaction wait in line — ACID guarantees, durability &amp; recovery, isolation levels, MVCC internals, and the read anomalies that surface when transactions run side by side.</p>
+      </div>
+    </a>
+
+    <a class="notebook" href="/engineering-notes/database-engineering/storage-internals-and-indexing.html" style="text-decoration:none; display:grid;">
+      <span class="notebook-num">II</span>
+      <div class="notebook-body">
+        <h2 class="notebook-title">Storage Internals &amp; Indexing</h2>
+        <p class="notebook-desc">How a table's rows actually sit on disk, why B+Trees won out over every other search tree, and why a single choice of primary key can make or break write throughput — pages, heaps, slotted page layout, clustered vs. heap tables, and row-oriented vs. columnar storage.</p>
+      </div>
+    </a>
+
+  </div>
+
+</div>
+</body>
+</html>

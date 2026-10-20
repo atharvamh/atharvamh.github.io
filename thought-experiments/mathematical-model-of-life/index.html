@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Mathematics of Life</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --ink: #15212f;
+  --muted: #55657a;
+  --line: #d3dbe6;
+  --time: #b4770d;
+  --path: #0e7686;
+  --ghost: #9db3c4;
+  --wash: #e7eef5;
+  --eq-bg: #eef3f8;
+  color-scheme: light;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1520;
+    --surface: #142031;
+    --ink: #e5ecf3;
+    --muted: #9fb0c3;
+    --line: #2a3b50;
+    --time: #e3a93a;
+    --path: #4cc3d4;
+    --ghost: #4b6479;
+    --wash: #1a2a3d;
+    --eq-bg: #101b2a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1520; --surface: #142031; --ink: #e5ecf3; --muted: #9fb0c3; --line: #2a3b50;
+  --time: #e3a93a; --path: #4cc3d4; --ghost: #4b6479; --wash: #1a2a3d; --eq-bg: #101b2a;
+  color-scheme: dark;
+}
+html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "STIX Two Text", Georgia, "Times New Roman", serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+.wrap { max-width: 720px; margin: 0 auto; padding: 28px 20px 64px; }
+h1 { font-size: clamp(26.5px, 7vw, 40.5px); line-height: 1.1; margin: 8px 0 14px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 23px; line-height: 1.2; margin: 52px 0 10px; font-weight: 600; }
+h3 { font-size: 16.5px; margin: 24px 0 6px; font-weight: 600; }
+p { margin: 0 0 14px; max-width: none; }
+.lede { font-size: 18.5px; color: var(--muted); max-width: none; }
+.muted { color: var(--muted); }
+i.v, .v { font-style: italic; }
+sub, sup { line-height: 0; }
+
+/* hero simulator */
+.sim { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 14px 16px; margin: 26px 0 8px; }
+.sim svg { width: 100%; height: auto; display: block; }
+.controls { display: flex; flex-direction: column; gap: 12px; margin-top: 10px; }
+.row { display: flex; align-items: center; gap: 12px; }
+.row label { font-size: 14px; min-width: 112px; }
+input[type=range] { flex: 1; accent-color: var(--path); min-height: 32px; }
+button {
+  font: inherit; font-size: 14px; color: var(--ink); background: var(--wash);
+  border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; cursor: pointer; min-height: 44px;
+}
+button:hover { border-color: var(--path); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--path); outline-offset: 2px; }
+.readout { font-size: 14px; color: var(--muted); margin-top: 10px; min-height: 0; }
+.readout b { color: var(--ink); }
+
+/* equation blocks */
+.eq {
+  background: var(--eq-bg); border-left: 4px solid var(--path);
+  padding: 12px 16px; margin: 10px 0 8px; font-size: 18.5px; overflow-x: auto; white-space: nowrap;
+}
+.say { margin: 0 0 22px; color: var(--muted); font-size: 15px; }
+.say b { color: var(--ink); font-weight: 600; }
+
+/* variable cards */
+.group { margin: 18px 0 0; border-top: 1px solid var(--line); }
+.var { display: grid; grid-template-columns: 92px 1fr; gap: 4px 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.var .sym { font-size: 19.5px; font-style: italic; color: var(--path); }
+.var .sym.t { color: var(--time); }
+.var .what { font-weight: 600; }
+.var .ex { grid-column: 2; color: var(--muted); font-size: 14px; }
+.group-title { margin: 34px 0 0; font-size: 17.5px; font-weight: 600; }
+
+/* one-step flow */
+.flow { display: flex; flex-direction: column; gap: 0; margin: 18px 0; }
+.step { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+.step b { display: block; }
+.arrow { text-align: center; color: var(--time); font-size: 19.5px; line-height: 1.2; padding: 2px 0; }
+
+/* revisit vs loop */
+.pair { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 16px 0; }
+.pair > div { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: var(--surface); }
+.ok { border-left: 4px solid var(--path) !important; }
+.no { border-left: 4px solid var(--time) !important; }
+@media (min-width: 600px) { .pair { grid-template-columns: 1fr 1fr; } }
+
+ul { padding-left: 20px; margin: 0 0 14px; }
+li { margin-bottom: 8px; max-width: none; }
+.next { background: var(--wash); border-radius: 12px; padding: 18px; margin-top: 40px; }
+.next p:last-child { margin: 0; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ===== Midnight refined theme ===== */
+:root, :root:not([data-theme="light"]), :root[data-theme="light"], :root[data-theme="dark"] {
+  --bg: #0b0f17;
+  --surface: #111724;
+  --ink: #e9ebf0;
+  --muted: #9aa3b5;
+  --line: #252d3f;
+  --time: #c9a96a;
+  --path: #86bcc9;
+  --ghost: #475671;
+  --wash: rgba(134, 188, 201, 0.08);
+  --eq-bg: #0e1420;
+  color-scheme: dark;
+}
+body {
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  line-height: 1.7;
+  background-color: var(--bg);
+  background-image: radial-gradient(ellipse 90% 40% at 50% -10%, rgba(134, 188, 201, 0.10), transparent 70%);
+  background-repeat: no-repeat;
+}
+h1, h2, h3, .group-title {
+  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  letter-spacing: 0;
+}
+h1 { font-size: clamp(31.5px, 8.8vw, 49.5px); line-height: 1.05; font-weight: 500; margin: 8px 0 18px; }
+h2 { font-size: 28px; line-height: 1.15; font-weight: 600; margin: 60px 0 12px; color: var(--ink); }
+h3 { font-size: 19.5px; font-weight: 600; margin: 28px 0 6px; color: var(--ink); }
+.group-title { font-size: 21px; font-weight: 600; color: var(--time); margin: 36px 0 0; }
+.lede { font-size: 17.5px; color: var(--muted); }
+.sim, .step, .pair > div {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+.sim { border-radius: 10px; }
+.step, .pair > div { border-radius: 8px; }
+.eq {
+  background: var(--eq-bg);
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--time);
+  border-radius: 4px;
+  font-size: 17.5px;
+  box-shadow: none;
+}
+.var .sym { color: var(--path); }
+.var .sym.t { color: var(--time); }
+.arrow { color: var(--time); }
+.ok { border-left: 2px solid var(--path) !important; }
+.no { border-left: 2px solid var(--time) !important; }
+.next { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+button { background: transparent; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); }
+button:hover { border-color: var(--time); box-shadow: none; }
+#plot text { font-family: "Source Serif 4", Georgia, serif !important; }
+
+/* ===== Type update: Playfair Display + Inter ===== */
+body { font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.7; }
+h1, h2, h3, .group-title { font-family: "Playfair Display", Georgia, "Times New Roman", serif; }
+h1 { font-size: clamp(26.5px, 7.4vw, 40.5px); line-height: 1.12; font-weight: 600; }
+h2 { font-size: 24px; line-height: 1.2; font-weight: 600; }
+h3 { font-size: 16.5px; line-height: 1.3; font-weight: 600; }
+.group-title { font-size: 17.5px; font-weight: 600; }
+.lede { font-size: 16px; line-height: 1.65; }
+.muted, .say, .var .ex { font-size: 13px; }
+.var .what { font-weight: 600; }
+.eq, .var .sym, .eq i, .sym i { font-family: "Playfair Display", Georgia, "Times New Roman", serif; }
+.eq { font-size: 16.5px; }
+.var .sym { font-size: 18.5px; }
+.readout { font-size: 13px; }
+button, .row label { font-family: "Inter", system-ui, sans-serif; font-size: 13px; }
+#plot text { font-family: "Inter", system-ui, sans-serif !important; font-size: 10.5px; }
+
+/* ===== True dark mode: neutral charcoal ===== */
+:root, :root:not([data-theme="light"]), :root[data-theme="light"], :root[data-theme="dark"] {
+  --bg: #0e0e10;
+  --surface: #17171a;
+  --ink: #ededee;
+  --muted: #9b9ba3;
+  --line: #2b2b31;
+  --time: #d8b46c;
+  --path: #7cc9d9;
+  --ghost: #56565f;
+  --wash: rgba(124, 201, 217, 0.08);
+  --eq-bg: #121215;
+  color-scheme: dark;
+}
+body { background-color: var(--bg); background-image: none; }
+/* ===== Button icons ===== */
+button { display: inline-flex; align-items: center; gap: 9px; transition: border-color .2s, transform .15s; }
+button:active { transform: scale(0.97); }
+.sim button svg.ic { width: 18px; height: 18px; max-width: 18px; display: inline-block; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform .3s ease, color .2s; }
+#roll .ic { color: var(--time); }
+#ghosts .ic { color: var(--path); }
+#orient .ic { color: #b79cff; }
+#ghosts .slash { opacity: 0; transition: opacity .2s; }
+#ghosts[aria-pressed="false"] .slash { opacity: 1; }
+#ghosts[aria-pressed="false"] .ic { color: var(--muted); }
+#orient[data-v="1"] .ic { transform: none; }
+#roll.spin .ic { animation: dicespin .55s ease; }
+.sim { padding: 14px 8px 16px; }
+@media (min-width: 900px) { .sim { margin-left: -110px; margin-right: -110px; padding: 18px 18px 20px; } }
+@keyframes dicespin { from { transform: rotate(0deg) scale(1); } 50% { transform: rotate(200deg) scale(1.2); } to { transform: rotate(360deg) scale(1); } }
+.legend { list-style: none; padding: 0; margin: 14px 4px 0; display: grid; gap: 10px; font-size: 13px; line-height: 1.5; color: var(--muted); }
+.legend li { display: flex; gap: 12px; align-items: flex-start; margin: 0; max-width: none; }
+.legend b { color: var(--ink); font-weight: 600; }
+.legend .sw { flex: none; width: 36px; margin-top: 9px; }
+.legend .life { border-top: 3px solid #b79cff; }
+.legend .others { height: 3px; margin-top: 9px; border-radius: 2px; background: linear-gradient(90deg, #7cc9d9, #e07a8a); }
+.legend .aim { border-top: 2px dashed var(--time); }
+.legend .cone { height: 12px; margin-top: 4px; background: var(--wash); border: 1px solid var(--line); }
+.rwd { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.rwd-title { font-family: "Playfair Display", Georgia, serif; font-size: 16px; font-weight: 600; margin: 0 4px 8px; }
+.rwd-note { font-size: 13px; line-height: 1.55; color: var(--muted); margin: 10px 4px 0; max-width: none; }
+.rwd-note b { color: var(--ink); font-weight: 600; }
+.sim > .controls { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.sim > .readout { margin: 12px 4px 0; max-width: none; min-height: 0; }
+.pair b { display: block; margin-bottom: 4px; }
+.nb { white-space: nowrap; }
+
+/* ===== STIX Two everywhere ===== */
+body, h1, h2, h3, .group-title, .eq, .eq i, .var .sym, .sym i, button, .row label, .rwd-title, .readout, .legend, .rwd-note {
+  font-family: "STIX Two Text", "STIX Two Math", "Cambria Math", Cambria, Georgia, "Times New Roman", serif;
+}
+body { font-size: 15.5px; line-height: 1.65; }
+h1 { font-weight: 600; }
+h2, h3, .group-title, .rwd-title { font-weight: 600; }
+.lede { font-size: 17.5px; }
+.muted, .say, .var .ex, .readout, .legend, .rwd-note, .cap, .hint { font-size: 14.5px; }
+.eq { font-size: 18.5px; }
+.var .sym { font-size: 19.5px; }
+button, .row label { font-size: 14.5px; }
+#plot text, #rewards text { font-family: "STIX Two Text", Georgia, serif !important; font-size: 11.5px; }
+.cap { font-size: 13px; line-height: 1.6; color: var(--muted); margin: 0 4px 12px; }
+.hint { font-size: 13px; line-height: 1.6; color: var(--muted); margin: -2px 0 0; }
+.row label { min-width: 0; white-space: nowrap; }
+#betaval { color: var(--ink); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.byline { font-size: 14.5px; color: var(--muted); margin: -6px 0 18px; letter-spacing: 0.01em; }
+.license { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13.5px; color: var(--muted); }
+.license p { margin: 0; }
+.license a { color: var(--path); text-underline-offset: 2px; }
+.license img { vertical-align: -0.12em; filter: invert(1); opacity: 0.8; }
+/* consistent 4px inset for everything inside the graph panel */
+.sim > .controls { padding-left: 4px; padding-right: 4px; }
+.sim > .readout { margin: 14px 4px 0; }
+.sim > .hint { margin: 10px 4px 0; padding-top: 10px; border-top: 1px solid var(--line); }
+.ghead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 0 4px 8px; }
+.ghead .rwd-title { margin: 0; }
+#orient { min-height: 36px; padding: 6px 10px; font-size: 13.5px; }
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script type="importmap">{"imports":{"three":"/assets/vendor/three.module.min.js"}}</script>
+<link rel="stylesheet" href="/assets/css/lab-theme.css">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<meta name="theme-color" content="#07080d">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="wrap">
+<nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/#lab">Lab</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">The Mathematics of Life</span></nav>
+
+<h1>The Mathematics of Life</h1>
+<p class="byline">Atharva Mhetar | 20 October 2026</p>
+<p class="lede">A life can be modelled as a sequence of states in space and time, linked by choices made under uncertainty. This page formalises that idea, introducing each variable and equation in turn and explaining what it represents.</p>
+
+<div class="sim" aria-label="Interactive simulation of life paths">
+  <div class="ghead"><div class="rwd-title">Life paths through spacetime</div><button id="orient" type="button" data-v="0"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg><span class="lbl">Switch to vertical</span></button></div>
+  <p class="cap"><span id="axisnote">Time runs left to right and cannot be reversed. The vertical axis is position.</span> Every life belongs to the same person with the same decision style, who earns more reward at each step the closer they are to the line of highest reward. Only outside influence differs between lives.</p>
+  <svg id="plot" viewBox="0 0 480 300" role="img" aria-label="Several life paths starting from the same birth point and moving through time, spreading as outside influence increases"></svg>
+  <ul class="legend">
+    <li><span class="sw life"></span><span><b>The life being followed.</b> One possible path from birth to the end of life.</span></li>
+    <li><span class="sw others"></span><span><b>Other possible lives.</b> Same person, same decision style, different outside events. Teal lives earn more total reward over their whole course, rose lives earn less.</span></li>
+    <li><span class="sw aim"></span><span><b>Where reward is highest.</b> Reward R is earned at every step, and is larger the closer the person is to this line. Success J is the total over the whole life.</span></li>
+    <li><span class="sw cone"></span><span><b>Reachable region.</b> The shaded area covers every place a person could be, since movement per step is limited.</span></li>
+  </ul>
+  <div class="rwd">
+    <div class="rwd-title">Reward collected at each step</div>
+    <svg id="rewards" viewBox="0 0 480 230" role="img" aria-label="Bars show the reward earned at each step of the highlighted life. Lines show the running total reward of every life."></svg>
+    <p class="rwd-note"><b>Bars:</b> the reward R the highlighted life earns at each step. It is high when the life is close to the line of highest reward and low when it is far away. <b>Lines:</b> the running total J for every life. Success is where each line ends up after the last step, so a life that gets close early collects more along the way.</p>
+  </div>
+  <div class="controls">
+    <div class="row">
+      <label for="eps">Outside influence (<i>ε</i>)</label>
+      <input id="eps" type="range" min="0" max="2" step="0.05" value="0.8">
+    </div>
+    <div class="row">
+      <label for="beta">Pursuit (<i>β</i>) <output id="betaval">4.0</output></label>
+      <input id="beta" type="range" min="0" max="10" step="0.1" value="4">
+    </div>
+    <p class="hint">β is how sharply the person pursues reward: at 0 they have no aims, at 10 they are close to a strict optimiser. Set outside influence to zero and raise β, and the lives draw together into one: a closed-loop system in which choices alone determine the life.</p>
+    <div class="row" style="flex-wrap:wrap">
+      <button id="roll" type="button"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3.5"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/></svg><span class="lbl">Re-roll outside events</span></button>
+      <button id="ghosts" type="button" aria-pressed="true"><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M1.5 12s4-7 10.5-7 10.5 7 10.5 7-4 7-10.5 7S1.5 12 1.5 12z"/><circle cx="12" cy="12" r="3"/><line class="slash" x1="4" y1="20" x2="20" y2="4"/></svg><span class="lbl">Hide other lives</span></button>
+    </div>
+  </div>
+  <p class="readout" id="readout"></p>
+  <p class="hint">This simulation is a simplified illustration: one position axis, reward that depends only on distance from the line of highest reward, outside influence as plain random noise, choices made by the soft policy of step 3 from five possible moves, a fixed length of life, and no life variables w<sub>k</sub>, so options and reward do not change as the life goes on.</p>
+</div>
+
+<h2>The variables</h2>
+<p>Everything in the model is one of four things: where you are, what you can do, what happens to you, and how you score the result.</p>
+
+<div class="group-title">Where you are</div>
+<div class="group">
+  <div class="var"><div class="sym">S<sub>k</sub></div><div><div class="what">Your state at step k</div></div><div class="ex">A snapshot of you: place, time, and the life variables below. Steps are k = 0, 1, 2 … n, where n is the step at which the life ends.</div></div>
+  <div class="var"><div class="sym">x, y, z</div><div><div class="what">Position in space</div></div><div class="ex">Where you physically are: your city, your house, your desk.</div></div>
+  <div class="var"><div class="sym t">t<sub>k</sub></div><div><div class="what">Time</div></div><div class="ex">Moves forward by a fixed slice Δt every step, whatever you choose.</div></div>
+  <div class="var"><div class="sym">w<sub>k</sub></div><div><div class="what">Life variables</div></div><div class="ex">A list of numbers describing your life apart from place and time, for example w<sub>k</sub> = (health, wealth, skills, relationships). They change at every step, and they drive most of the model: your options A, your reward R and your hazard h all depend mainly on w<sub>k</sub>. Which quantities to include is a modelling choice.</div></div>
+  <div class="var"><div class="sym">S<sub>0</sub></div><div><div class="what">Birth event</div></div><div class="ex">(x<sub>0</sub>, y<sub>0</sub>, z<sub>0</sub>, t<sub>0</sub>, w<sub>0</sub>): where, when, and with what starting conditions you began.</div></div>
+</div>
+
+<div class="group-title">What you can do</div>
+<div class="group">
+  <div class="var"><div class="sym">𝒜</div><div><div class="what">Universal action set</div></div><div class="ex">Every action anyone could conceivably take.</div></div>
+  <div class="var"><div class="sym">A(S<sub>k</sub>)</div><div><div class="what">Your options right now</div></div><div class="ex">The slice of 𝒜 open to you in this state. Enrolling at a university is only in the set if you can reach one and afford it. Set mostly by w<sub>k</sub>, and also by where you are.</div></div>
+  <div class="var"><div class="sym">a<sub>k</sub></div><div><div class="what">The choice you make</div></div><div class="ex">One action picked from A(S<sub>k</sub>).</div></div>
+  <div class="var"><div class="sym">π</div><div><div class="what">Your policy</div></div><div class="ex">π(a | S<sub>k</sub>): your decision style, the probability of picking each available action in a situation. Cautious, bold, impulsive, planned. People rarely choose identically from identical situations.</div></div>
+</div>
+
+<div class="group-title">What happens to you</div>
+<div class="group">
+  <div class="var"><div class="sym">ε<sub>k</sub></div><div><div class="what">Everything not your choice</div></div><div class="ex">Luck, the economy, accidents, other people’s decisions. It is an input to the dynamics, not an error bar. Drawn from p(ε<sub>k</sub> | S<sub>k</sub>, a<sub>k</sub>), because your state and choices change what kind of events reach you. Its fresh, unpredictable part is treated as independent from step to step. Lasting outside factors, such as the economy or a long relationship, belong in w<sub>k</sub> instead.</div></div>
+  <div class="var"><div class="sym">f</div><div><div class="what">The dynamics</div></div><div class="ex">The rule of the world: given where you are, what you chose, and what the outside world did, it says where you land.</div></div>
+  <div class="var"><div class="sym">h</div><div><div class="what">Hazard: the chance the life ends</div></div><div class="ex">h(S<sub>k</sub>, a<sub>k</sub>): the probability that life ends at step k, given that it has lasted until then. It depends on your state and your choice, such as your health, how risky your surroundings are, and what you do. Outside events (ε) are averaged out, so h is the overall chance, not a single roll. A higher h means a shorter expected life.</div></div>
+</div>
+
+<div class="group-title">How you score it</div>
+<div class="group">
+  <div class="var"><div class="sym">R<sub>i</sub></div><div><div class="what">Person i’s reward function</div></div><div class="ex">A personal definition of success. For one person it rewards wealth, for another peace with family, for another following a passion. Success depends on the frame of reference of the person measuring it.</div></div>
+  <div class="var"><div class="sym">γ</div><div><div class="what">A life path</div></div><div class="ex">The whole sequence (S<sub>0</sub>, S<sub>1</sub>, … S<sub>n</sub>).</div></div>
+  <div class="var"><div class="sym">J<sub>i</sub>(γ)</div><div><div class="what">Success of a life</div></div><div class="ex">Add up the reward at every step, weighted by δ, as person i measures it.</div></div>
+  <div class="var"><div class="sym">δ</div><div><div class="what">Discount factor</div></div><div class="ex">How much later reward counts compared with reward now, between 0 and 1. At δ = 1 every step counts equally, as in the graphs above. It measures impatience, since the risk of not living to see a reward is handled by h.</div></div>
+</div>
+
+<h2>The equations, in plain words</h2>
+
+<h3>1. Where you start</h3>
+<div class="eq">S<sub>0</sub> = (x<sub>0</sub>, y<sub>0</sub>, z<sub>0</sub>, t<sub>0</sub>, w<sub>0</sub>)</div>
+<p class="say"><b>Birth is the first point of the path.</b> You do not pick it. It fixes your starting place, time and resources.</p>
+
+<h3>2. Time always moves forward</h3>
+<div class="eq"><i>t</i><sub>k+1</sub> = <i>t</i><sub>k</sub> + Δ<i>t</i></div>
+<p class="say"><b>Time is not a choice.</b> The clock ticks one slice per step. Your choices steer everything except this.</p>
+
+<h3>3. You can’t outrun light</h3>
+<div class="eq">| <i>r</i><sub>k+1</sub> − <i>r</i><sub>k</sub> | &lt; <i>c</i> Δ<i>t</i></div>
+<p class="say"><b>Per step, you can only move a limited distance:</b> less than light travels in the same time, and in practice far less. This keeps the path “timelike”, the kind of path a real person can follow. It is the shaded cone in the plot above.</p>
+
+<h3>4. Which choices are open</h3>
+<div class="eq"><i>a</i><sub>k</sub> ∈ A(S<sub>k</sub>) ⊆ 𝒜</div>
+<p class="say"><b>You choose, but only from what is available.</b> Each choice also changes your state, which reshapes the options available next time.</p>
+
+<h3>5. Your decision style</h3>
+<div class="eq"><i>a</i><sub>k</sub> ~ π( · | S<sub>k</sub> )</div>
+<p class="say"><b>The same situation can lead two people, or one person on two days, to different choices.</b> A policy gives odds to each available option instead of fixing one. It gives zero probability to any action outside A(S<sub>k</sub>), so it only ever picks from options that are actually open.</p>
+
+<h3>6. One step of life</h3>
+<div class="eq">S<sub>k+1</sub> = f( S<sub>k</sub>, <i>a</i><sub>k</sub>, ε<sub>k</sub> )</div>
+<p class="say"><b>Next state = where you are, plus what you chose, plus what the world did.</b> Two people with identical state and identical choice can land in different places because ε differs. Set every ε to zero and you recover the pure “my choices decide everything” picture.</p>
+<div class="eq">w<sub>k+1</sub> = g( w<sub>k</sub>, <i>a</i><sub>k</sub>, ε<sub>k</sub> )</div>
+<p class="say"><b>The life variables are part of the state, so the dynamics update them too.</b> A course raises skills, an illness lowers health, a promotion raises wealth, a move changes relationships. g is the part of f that does this, and it is where most of a life’s change happens.</p>
+<div class="eq">ε<sub>k</sub> ~ p( · | S<sub>k</sub>, <i>a</i><sub>k</sub> )</div>
+<p class="say"><b>Your state and choices change the odds of what reaches you, not the fact that something does.</b> A strong network or a safe city shifts which events come your way. Given your state and choice, ε is drawn fresh at each step. That independence is what makes the next state depend only on the current state and choice, the Markov property. It holds only if lasting outside factors, such as the state of the economy or a long relationship, are part of w<sub>k</sub>, leaving just the fresh part in ε.</p>
+
+<h3>7. A whole life</h3>
+<div class="eq">γ = ( S<sub>0</sub>, S<sub>1</sub>, … , S<sub>n</sub> )</div>
+<p class="say"><b>A life is the chain of states, ending at a random step n.</b> Because of ε and the chance of ending h, one person does not have one life path but a spread of possible ones.</p>
+
+<h3>8. How long a life lasts</h3>
+<div class="eq">P( n ≥ k | γ ) = Π<sub>j &lt; k</sub> ( 1 − h(S<sub>j</sub>, <i>a</i><sub>j</sub>) )</div>
+<p class="say"><b>Survival probability: the chance of still being alive at step k.</b> At each earlier step the life continues with chance 1 − h, so you multiply those chances together. The bar | γ means “given this path”: h depends on the states and choices along the way, so the answer is for one particular path.</p>
+<div class="eq">P( n = k | γ ) = P( n ≥ k | γ ) · h(S<sub>k</sub>, <i>a</i><sub>k</sub>)</div>
+<p class="say"><b>The chance that the life ends exactly at step k:</b> survive until step k, then end there with chance h. Added over every k, these chances come to 1, since every life ends at some step. For example, with h = 0.1 at every step, the chances of surviving to steps 0, 1, 2 are 1, 0.9, 0.81, and the chances of ending at those steps are 0.1, 0.09, 0.081. A risky road, a dangerous job or poor health raise h at those steps, and good health and safe surroundings lower it. So your choices shift how long a life is likely to be without fixing it.</p>
+
+<h3>9. How successful was it?</h3>
+<div class="eq"><i>J</i><sub>i</sub>(γ) = Σ<sub>k=0</sub><sup>n</sup> δ<sup>k</sup> <i>R</i><sub>i</sub>( S<sub>k</sub>, <i>a</i><sub>k</sub> )</div>
+<p class="say"><b>Success is personal.</b> The same path scores high under one reward function and low under another. Nothing in the maths says which R<sub>i</sub> is right.</p>
+<div class="eq"><i>J</i> = <i>R</i><sub>0</sub> + δ <i>R</i><sub>1</sub> + δ<sup>2</sup> <i>R</i><sub>2</sub> + δ<sup>3</sup> <i>R</i><sub>3</sub> + …</div>
+<p class="say"><b>The discount factor δ says how much a reward counts depending on when it arrives.</b> It is a number between 0 and 1, and a reward k steps away is multiplied by δ<sup>k</sup>. With δ = 0.9, a reward counts 1 now, 0.9 at the next step, 0.81 the step after, and about 0.35 ten steps later. At δ = 1 every step counts equally, as in the graphs above. A δ close to 1 describes a patient person who will study or save for years, and a small δ describes someone who mostly values the next few steps. Like R<sub>i</sub>, δ is personal: two people with the same reward function but different δ can make opposite choices. Here δ means pure impatience. The chance that life ends before a reward arrives is already handled by the hazard h, so δ should not count that risk a second time.</p>
+
+<h2>One step, start to finish</h2>
+<div class="flow">
+  <div class="step"><b>You are at S<sub>k</sub></b>Place, time, health, money, skills, relationships.</div>
+  <div class="arrow">↓</div>
+  <div class="step"><b>Your options are A(S<sub>k</sub>)</b>Set mostly by your life variables, and also by where you are.</div>
+  <div class="arrow">↓</div>
+  <div class="step"><b>You choose a<sub>k</sub> ~ π(· | S<sub>k</sub>)</b>Your decision style gives odds to each option and one is picked.</div>
+  <div class="arrow">↓</div>
+  <div class="step"><b>The world adds ε<sub>k</sub></b>Luck, the economy and other people’s choices act on you.</div>
+  <div class="arrow">↓</div>
+  <div class="step"><b>You arrive at S<sub>k+1</sub> = f(S<sub>k</sub>, a<sub>k</sub>, ε<sub>k</sub>)</b>Time has advanced by Δt. Your options have changed. The life may end here, with chance h. Otherwise, repeat.</div>
+</div>
+
+<h2>Revisit, not loop</h2>
+<div class="pair">
+  <div class="ok"><b>Revisit: allowed</b> Same place, later time: <span class="nb">(x<sub>a</sub>, y<sub>a</sub>, z<sub>a</sub>, <i>t</i><sub>c</sub>)</span> with <i>t</i><sub>c</sub> &gt; <i>t</i><sub>a</sub>. <span class="muted">You are back at the old house, but as a different person.</span></div>
+  <div class="no"><b>Loop: impossible</b> Same place and same time: <span class="nb">(x<sub>a</sub>, y<sub>a</sub>, z<sub>a</sub>, <i>t</i><sub>a</sub>)</span> twice. <span class="muted">Time only climbs, so an event never repeats.</span></div>
+</div>
+<p>Your spatial path can cross itself many times, like a tangled thread on the floor. In (x, y, z, t), and certainly in (x, y, z, t, w), it never touches itself: it is a curve that keeps climbing the time axis.</p>
+
+<h2>Optionality</h2>
+<p>Some choices keep many doors open, others close them. The simplest measure is to count the options:</p>
+<div class="eq">Optionality(S<sub>k</sub>) = | A(S<sub>k</sub>) |</div>
+<p class="say"><b>Larger means more freedom next step.</b> Good early choices often matter because they keep this large.</p>
+<div class="eq">H(S<sub>k</sub>) = − Σ<sub>a ∈ A(S<sub>k</sub>)</sub> π(a | S<sub>k</sub>) log π(a | S<sub>k</sub>)</div>
+<p class="say"><b>The count treats every option as equally real. Entropy weighs them by how likely you are to take them.</b> e<sup>H</sup> is the effective number of options: it equals | A(S<sub>k</sub>) | when all options are equally attractive, and shrinks towards 1 when one option dominates. Ten open doors you would never walk through count for little. A more rigorous measure, empowerment, looks at how many different futures your choices can reach.</p>
+
+<h2>The length of a life</h2>
+<p>The end of life, n, is random: at every step the life ends with probability h(S<sub>k</sub>, a<sub>k</sub>), the hazard from equation 8. Your choices shift this probability but do not fix it. Someone who is on a certain road is there by choice, yet most people who make the same choice arrive safely, and outside events decide the rest.</p>
+
+<h2>The path integral</h2>
+<p>So far the model follows one life at a time. The path integral looks at every possible life at once and asks how likely each one is.</p>
+
+<h3>Step 1. A baseline life with no aims</h3>
+<div class="eq">γ = ( S<sub>0</sub>, <i>a</i><sub>0</sub>, S<sub>1</sub>, <i>a</i><sub>1</sub>, … , S<sub>n</sub> )</div>
+<p class="say"><b>To weigh whole lives, a path records the choices as well as the states.</b></p>
+<div class="eq">π<sub>0</sub>( a | S<sub>k</sub> ) = 1 / | A(S<sub>k</sub>) |</div>
+<p class="say"><b>The baseline person chooses with no preference,</b> picking evenly among the options that are open.</p>
+<div class="eq">P<sub>0</sub>(γ) = Π<sub>k</sub> π<sub>0</sub>( <i>a</i><sub>k</sub> | S<sub>k</sub> ) · p( S<sub>k+1</sub> | S<sub>k</sub>, <i>a</i><sub>k</sub> ) · P( n | γ )</div>
+<p class="say"><b>The probability of an entire life under aimless choosing.</b> At each step, multiply the chance of the choice by the chance that outside events lead to the next state. Then multiply by the chance of the life ending when it does, from equation 8. P<sub>0</sub> answers one question: how likely is this exact life for someone with no aims at all?</p>
+
+<h3>Step 2. Weighting lives by reward</h3>
+<div class="eq">P<sub>β</sub>(γ) = ( 1 / Z ) · P<sub>0</sub>(γ) · <i>e</i><sup>β J(γ)</sup></div>
+<div class="eq">Z = Σ<sub>γ</sub> P<sub>0</sub>(γ) · <i>e</i><sup>β J(γ)</sup></div>
+<p class="say"><b>Lives that earn more reward become more likely.</b> Z adds this up over every possible life, which is what makes it a path integral: a sum over paths, or an integral when states vary continuously. Dividing by Z makes the probabilities add up to 1.</p>
+<p class="say"><b>β sets how sharply a person pursues their reward.</b> At β = 0 the weighting disappears and the life drifts like the baseline. As β grows, high-reward lives dominate, and as β → ∞ only the single best life remains: a strict optimiser. In between, lives are mostly good, with room for variation.</p>
+<p class="say"><b>“Going with the flow” can mean three different things here.</b> At β = 0 with the even baseline, a person is truly aimless: indifferent among their options, with circumstances shaping their life. If the baseline is instead “what people around me usually do”, β = 0 means following convention or habit exactly. And someone who deliberately chooses a relaxed life has β &gt; 0, with a reward R<sub>i</sub> that values ease. From outside they can look alike, but the model tells them apart.</p>
+<div class="eq">P<sub>β</sub> = argmax<sub>P</sub> [ E<sub>P</sub>[ J ] − ( 1 / β ) · KL( P ‖ P<sub>0</sub> ) ]</div>
+<p class="say"><b>The weighting is not arbitrary.</b> It is the best possible trade-off between earning reward and staying close to the baseline. KL, the Kullback–Leibler divergence, measures how far a way of living departs from the baseline, and 1/β sets the price of departing.</p>
+
+<h3>A caution: tilt the choices, not the luck</h3>
+<p class="say"><b>Weighting whole paths also reweights outside events, as if a person could choose their luck.</b> That is valid only when the world is fully controllable. With real outside influence, the tilt is applied to choices alone, one step at a time:</p>
+<div class="eq">π( a | S<sub>k</sub> ) ∝ π<sub>0</sub>( a | S<sub>k</sub> ) · <i>e</i><sup>β Q(S<sub>k</sub>, a)</sup></div>
+<p class="say"><b>Q(S, a) is the future reward expected from choosing a in state S,</b> in a softened form defined in step 3. Choices lean towards reward, while outside events keep their own odds.</p>
+
+<h3>Step 3. Working backwards from the end of life</h3>
+<p class="say"><b>To choose well now, a person needs to know what each choice leads to.</b> That depends on later choices, so the values are worked out backwards, from the end of life to birth.</p>
+<div class="eq">Q(S, <i>a</i>) = R(S, <i>a</i>) + δ · ( 1 − h(S, <i>a</i>) ) · E[ V(S′) ]</div>
+<p class="say"><b>The value of a choice:</b> the reward earned now, plus the value of wherever you land next. Later value counts a little less (δ), only arrives if you survive the step (1 − h), and is averaged over outside events (E[ ]), so luck is averaged, not chosen.</p>
+<div class="eq">V(S) = ( 1 / β ) · log Σ<sub>a</sub> π<sub>0</sub>( <i>a</i> | S ) · <i>e</i><sup>β Q(S, a)</sup></div>
+<p class="say"><b>The value of a state is a soft maximum over the options.</b> As β → ∞ it becomes max<sub>a</sub> Q(S, a), the classic Bellman equation of a perfect optimiser. As β → 0 it becomes the plain average of Q under the baseline. At the end of life V = 0, and from there V is computed one step back at a time.</p>
+<div class="eq">π( <i>a</i> | S ) = π<sub>0</sub>( <i>a</i> | S ) · <i>e</i><sup>β ( Q(S, a) − V(S) )</sup></div>
+<p class="say"><b>The resulting policy:</b> options worth more than the state’s overall value become more likely, worse ones less likely, and β sets how strongly. This is the policy used by the simulation at the top of the page, where the pursuit slider sets β.</p>
+
+<h3>The most probable life</h3>
+<div class="eq">γ* = argmax<sub>γ</sub> log P<sub>π</sub>(γ)</div>
+<p class="say"><b>With outside influence there is no single destined life, but there is a most probable one.</b> log P<sub>π</sub>(γ) adds up, along the path, how likely each choice was, how likely each outside event was, and how likely the life was to end when it did.</p>
+<div class="eq">A(γ) = Σ<sub>k</sub> | Δx<sub>k</sub> − drift |<sup>2</sup> / ( 2σ<sup>2</sup> ) − β J(γ)</div>
+<p class="say"><b>This is where the physics returns.</b> A particle follows the path of least action, and here −log P plays the role of the action. In the simplest case, where choices and Gaussian outside events with spread σ push on position in the same way, the most probable life minimises A(γ). The first term is the cost of departing from where the world would push you, and the second is the reward gained by doing so. At β = 0 the most probable life is the most typical drift. At large β it tracks the best route, and outside events are the only source of variation. When σ is large, actual lives spread widely around it, so it tells you less.</p>
+
+<h2>Possible extensions</h2>
+<p>The model above is complete in structure, but the simulation uses only part of it. Three extensions would bring the rest to life. Each one changes what a good life looks like inside the model.</p>
+
+<h3>1. Life variables that change over a life</h3>
+<div class="eq">w<sub>k+1</sub> = g( w<sub>k</sub>, <i>a</i><sub>k</sub>, ε<sub>k</sub> ),   w<sub>k</sub> = ( health, wealth, skills, relationships )</div>
+<p class="say"><b>Choices would build or spend these quantities over time.</b> Studying raises skills, working raises wealth, time with people deepens relationships, and neglect or illness lowers health.</p>
+<div class="eq">A(S<sub>k</sub>) = A( r<sub>k</sub>, w<sub>k</sub> ),   R<sub>i</sub>(S<sub>k</sub>, <i>a</i><sub>k</sub>) = Σ<sub>j</sub> θ<sub>ij</sub> · u<sub>j</sub>( w<sub>k</sub> )</div>
+<p class="say"><b>Options and reward would then depend on the life lived so far.</b> New skills open options that were closed, and wealth makes some choices affordable. Reward becomes a weighted mix of how each life variable feels (u<sub>j</sub>), and the weights θ<sub>i</sub> describe what person i values. This turns “success is personal” into numbers: one person weights wealth, another relationships. The interesting trade-offs appear here, such as giving up reward now to build skills that pay later, which is where the discount factor δ starts to matter.</p>
+
+<h3>2. Lives that end at different times</h3>
+<div class="eq">h(S<sub>k</sub>, <i>a</i><sub>k</sub>) rises with age, rises with risky choices, falls with health</div>
+<p class="say"><b>The hazard would let lives end early or late, instead of all at the same step.</b> In the graphs, some paths would stop short. Choices would then carry a second kind of value: besides earning reward, they change how long the person is likely to keep earning it. A risky but rewarding life and a careful but longer one could end up with similar totals. Here the difference between δ and h becomes clear: δ is impatience, while h is the real chance of not being there later.</p>
+
+<h3>3. Other people as agents: the model becomes a game</h3>
+<div class="eq">S<sup>i</sup><sub>k+1</sub> = f( S<sup>i</sup><sub>k</sub>, <i>a</i><sup>i</sup><sub>k</sub>, <i>a</i><sup>−i</sup><sub>k</sub>, ε<sub>k</sub> )</div>
+<p class="say"><b>Each person i gets their own state, policy, reward, discount and pursuit.</b> Their next state depends on their own choice and on everyone else’s choices (written −i, “everyone except i”). Other people move out of the outside influence ε, which keeps only what no one chooses.</p>
+<div class="eq">π<sup>i</sup> = soft response<sub>β<sub>i</sub></sub>( π<sup>−i</sup> )   for every person i</div>
+<p class="say"><b>An equilibrium is reached when everyone’s choices fit everyone else’s.</b> Each person makes the soft, reward-leaning choices of step 3, given what they expect the others to do, and those expectations turn out to be right. For a single choice this is the quantal response equilibrium of McKelvey and Palfrey, and as every β grows it becomes the Nash equilibrium of classical game theory.</p>
+<p class="say"><b>“Game” here means shared outcomes, not that life is trivial or about winning.</b> Many such games are cooperative: friendship, family, teams and trade mostly reward both sides. A reward can also include other people’s wellbeing, as a parent’s includes their child’s. This is where questions about trust, reputation and cooperation live, and it explains “keep your circle good” in the model’s terms: the people around you shape your life variables and the options open to you.</p>
+
+<div class="next">
+  <h3 style="margin-top:0">What the model is, and is not</h3>
+  <p>The model gives life’s choices a precise structure: states, options, choices, outside influence, survival and personal reward, linked by equations that fit together. It is a lens rather than a prediction. Its key ingredients, such as each person’s reward R<sub>i</sub>, their life variables w<sub>k</sub> and the dynamics f, are not measured here, so the model cannot say how any particular life will go. Its value is in making the assumptions explicit, so that each one can be questioned, refined or tested.</p>
+</div>
+
+<h2>References</h2>
+<h3>Space and time</h3>
+<ul>
+  <li><b>Minkowski (1908)</b>, spacetime: worldlines and the light cone, behind the timelike path and the reachable region.</li>
+  <li><b>Hägerstrand (1970)</b>, time geography: lives as paths through space and time, limited by what is possible.</li>
+  <li><b>Feynman (1948)</b>, path integrals: summing over every possible path, and the link to least action, behind the path integral section.</li>
+</ul>
+<h3>Decisions</h3>
+<ul>
+  <li><b>Bellman (1957)</b>, dynamic programming and Markov decision processes: states, actions, policy, dynamics and summed rewards, and working backwards from the end in step 3.</li>
+  <li><b>Samuelson (1937)</b>, discounted utility: the discount factor δ.</li>
+  <li><b>McFadden (1974)</b>, logit choice: choice probabilities proportional to e<sup>β·value</sup>, behind the soft policy.</li>
+  <li><b>Ng and Russell (2000)</b>, inverse reinforcement learning: inferring someone’s R<sub>i</sub> from the choices they made.</li>
+  <li><b>Ziebart et al. (2008)</b>, maximum entropy inverse reinforcement learning: the soft value and soft policy of step 3.</li>
+</ul>
+<h3>Survival</h3>
+<ul>
+  <li><b>Cox (1972)</b>, survival analysis: hazard models, behind h and the survival probability.</li>
+</ul>
+<h3>Information and control</h3>
+<ul>
+  <li><b>Shannon (1948)</b>, information theory: entropy, used for optionality.</li>
+  <li><b>Kullback and Leibler (1951)</b>: the KL divergence in step 2.</li>
+  <li><b>Klyubin, Polani and Nehaniv (2005)</b>, empowerment: a measure of how many different futures choices can reach.</li>
+  <li><b>Todorov (2009)</b>, KL control: the trade-off between reward and staying close to a baseline, behind step 2.</li>
+  <li><b>Kappen (2005)</b>, path integral control: sums over paths weighted by e<sup>βJ</sup>, and the least-action form of the most probable life.</li>
+</ul>
+<h3>Games</h3>
+<ul>
+  <li><b>Nash (1950)</b>: the Nash equilibrium, which the game version approaches as every β grows.</li>
+  <li><b>McKelvey and Palfrey (1995)</b>: the quantal response equilibrium, the game version of the soft policy.</li>
+</ul>
+<p>The model combines these with the geometry of relativistic worldlines (timelike path, revisit vs. loop) and treats “success” as frame-dependent.</p>
+
+</div>
+
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("plot");
+  var epsEl = document.getElementById("eps");
+  var betaEl = document.getElementById("beta");
+  var betaVal = document.getElementById("betaval");
+  var rollBtn = document.getElementById("roll");
+  var ghostBtn = document.getElementById("ghosts");
+  var orientBtn = document.getElementById("orient");
+  var readout = document.getElementById("readout");
+  var axisNote = document.getElementById("axisnote");
+  var rsvg = document.getElementById("rewards");
+
+  var N = 40;             // steps in a life
+  var XR = 14;            // half-range of position in model units
+  var GOAL = 6;           // what this person is aiming for
+  var CAP = 1;            // max move per step ("c")
+  var NPATHS = 12;
+  var seed = 7;
+  var showGhosts = true;
+  var vertical = false;
+  var NEAR = [124, 201, 217], FAR = [224, 122, 138];
+  var LIFE = "#b79cff";
+
+  var DIM = {
+    h: { W: 480, H: 350, L: 40, R: 18, T: 24, B: 36 },
+    v: { W: 360, H: 520, L: 24, R: 24, T: 46, B: 46 }
+  };
+  var D = DIM.h;
+
+  function rng() { // mulberry32
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+  function gauss() {
+    var u = 1 - rng(), v = rng();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  var noise = [], unif = [];
+  function drawNoise() {
+    noise = []; unif = [];
+    for (var p = 0; p < NPATHS; p++) {
+      var row = [], urow = [];
+      for (var k = 0; k < N; k++) { row.push(gauss()); urow.push(rng()); }
+      noise.push(row); unif.push(urow);
+    }
+  }
+
+  function simulate(eps, beta) {
+    var F = solve(eps, beta), paths = [];
+    for (var p = 0; p < NPATHS; p++) {
+      var x = 0, pts = [[0, 0]];
+      for (var k = 1; k <= N; k++) {
+        var a = choose(F[k - 1], x, beta, unif[p][k - 1]);              // soft policy from step 3
+        var dx = clamp(ACTS[a] + eps * 0.45 * noise[p][k - 1], -CAP, CAP); // dynamics with outside influence
+        x += dx;
+        pts.push([k, x]);                                              // [time, position]
+      }
+      paths.push(pts);
+    }
+    return paths;
+  }
+
+  // map (time k, position x) to screen coordinates for the current orientation
+  function pt(k, x) {
+    if (!vertical) {
+      return [D.L + k / N * (D.W - D.L - D.R), D.T + (1 - (x + XR) / (2 * XR)) * (D.H - D.T - D.B)];
+    }
+    return [D.L + (x + XR) / (2 * XR) * (D.W - D.L - D.R), D.H - D.B - k / N * (D.H - D.T - D.B)];
+  }
+  function f1(v) { return v.toFixed(1); }
+  function P(k, x) { var c = pt(k, x); return f1(c[0]) + "," + f1(c[1]); }
+
+  function el(name, attrs, parent) {
+    var e = document.createElementNS(NS, name);
+    for (var key in attrs) e.setAttribute(key, attrs[key]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(x, y, str, attrs, parent) {
+    var base = { x: x, y: y, fill: "var(--muted)", "font-size": 11 };
+    for (var key in attrs) base[key] = attrs[key];
+    var t = el("text", base, parent);
+    t.textContent = str;
+    return t;
+  }
+  function mix(d) { // d: 0 near the aim, 1 far from it
+    var u = clamp(d, 0, 1), c = [];
+    for (var i = 0; i < 3; i++) c.push(Math.round(NEAR[i] + (FAR[i] - NEAR[i]) * u));
+    return "rgb(" + c.join(",") + ")";
+  }
+  // reward is earned at every step: closer to the aim earns more. J is the average over the whole life (0 to 1).
+  function jOf(pts) {
+    var tot = 0;
+    for (var q = 0; q < pts.length; q++) tot += 1 - Math.min(Math.abs(pts[q][1] - GOAL) / 8, 1);
+    return tot / pts.length;
+  }
+  function badness(pts) { return clamp((1 - jOf(pts)) * 2.5, 0, 1); }
+  function pathD(pts) {
+    return pts.map(function (q, n) { var c = pt(q[0], q[1]); return (n ? "L" : "M") + f1(c[0]) + " " + f1(c[1]); }).join(" ");
+  }
+
+  // reward earned at one step, as a function of position (0 to 1)
+  function rOf(x) { return 1 - Math.min(Math.abs(x - GOAL) / 8, 1); }
+  // ---- soft policy (step 3) ----
+  var ACTS = [-0.5, -0.25, 0, 0.25, 0.5];
+  var GX = 0.25, NG = Math.round(2 * XR / GX) + 1;
+  var ZN = [-2, -1, 0, 1, 2];
+  var ZW = (function () { var w = ZN.map(function (z) { return Math.exp(-z * z / 2); }); var t = w.reduce(function (a, b) { return a + b; }, 0); return w.map(function (v) { return v / t; }); })();
+  function gi(x) { var u = (clamp(x, -XR, XR) + XR) / GX, i = Math.min(Math.floor(u), NG - 2); return [i, u - i]; }
+  function interp(row, x) { var q = gi(x); return row[q[0]] * (1 - q[1]) + row[q[0] + 1] * q[1]; }
+  function interpCol(F, x, a) { var q = gi(x), nA = ACTS.length; return F[q[0] * nA + a] * (1 - q[1]) + F[(q[0] + 1) * nA + a] * q[1]; }
+  // F[k][g*nA+a] = expected value of the next state, E[V_{k+1}(x')], working backwards from the end of life
+  function solve(eps, beta) {
+    var sig = eps * 0.45, nA = ACTS.length, g, a, z, k;
+    var Vn = new Float64Array(NG);
+    for (g = 0; g < NG; g++) Vn[g] = rOf(-XR + g * GX);
+    var F = new Array(N);
+    for (k = N - 1; k >= 0; k--) {
+      var Fk = new Float64Array(NG * nA), Vk = new Float64Array(NG);
+      for (g = 0; g < NG; g++) {
+        var x = -XR + g * GX, m = -Infinity, sum = 0;
+        for (a = 0; a < nA; a++) {
+          var e = 0;
+          if (sig === 0) e = interp(Vn, x + clamp(ACTS[a], -CAP, CAP));
+          else for (z = 0; z < ZN.length; z++) e += ZW[z] * interp(Vn, x + clamp(ACTS[a] + sig * ZN[z], -CAP, CAP));
+          Fk[g * nA + a] = e;
+          if (e > m) m = e;
+          sum += e;
+        }
+        var soft;
+        if (beta === 0) soft = sum / nA;
+        else { var s = 0; for (a = 0; a < nA; a++) s += Math.exp(beta * (Fk[g * nA + a] - m)) / nA; soft = m + Math.log(s) / beta; }
+        Vk[g] = rOf(x) + soft;
+      }
+      F[k] = Fk; Vn = Vk;
+    }
+    return F;
+  }
+  function choose(Fk, x, beta, u) {
+    var nA = ACTS.length, e = [], m = -Infinity, a, w = [], t = 0;
+    for (a = 0; a < nA; a++) { e.push(interpCol(Fk, x, a)); if (e[a] > m) m = e[a]; }
+    for (a = 0; a < nA; a++) { w.push(beta === 0 ? 1 : Math.exp(beta * (e[a] - m))); t += w[a]; }
+    var c = 0;
+    for (a = 0; a < nA; a++) { c += w[a] / t; if (u < c) return a; }
+    return nA - 1;
+  }
+
+  function drawRewards(paths) {
+    var RW = Math.round(rsvg.getBoundingClientRect().width) || 480;
+    var RH = Math.round(clamp(RW * 0.42, 190, 280));
+    var L = 40, Rr = 44, T = 22, B = 36;
+    rsvg.setAttribute("viewBox", "0 0 " + RW + " " + RH);
+    var iw = RW - L - Rr, ih = RH - T - B;
+    function X(k) { return L + k / N * iw; }
+    function YR(r) { return RH - B - r * ih; }                 // per-step reward axis, 0 to 1
+    function YC(c) { return RH - B - c / (N + 1) * ih; }       // running total axis, 0 to N+1
+    while (rsvg.firstChild) rsvg.removeChild(rsvg.firstChild);
+    var i, k, q;
+
+    // grid and axis labels
+    var rt = [0, 0.5, 1];
+    for (i = 0; i < rt.length; i++) {
+      el("line", { x1: L, y1: YR(rt[i]), x2: RW - Rr, y2: YR(rt[i]), stroke: "var(--line)", "stroke-width": rt[i] === 0 ? 1 : 0.6, opacity: rt[i] === 0 ? 0.9 : 0.5 }, rsvg);
+      txt(L - 6, YR(rt[i]) + 4, String(rt[i]), { "text-anchor": "end" }, rsvg);
+    }
+    var ct = [0, 20, 40];
+    for (i = 0; i < ct.length; i++) txt(RW - Rr + 6, YC(ct[i]) + 4, String(ct[i]), { "text-anchor": "start" }, rsvg);
+    var tt = [0, 10, 20, 30, 40];
+    for (i = 0; i < tt.length; i++) {
+      el("line", { x1: X(tt[i]), y1: T, x2: X(tt[i]), y2: RH - B, stroke: "var(--line)", "stroke-width": 0.6, opacity: 0.4 }, rsvg);
+      txt(X(tt[i]), RH - B + 14, String(tt[i]), { "text-anchor": "middle" }, rsvg);
+    }
+    txt(X(N / 2), RH - 6, "time step k \u2192", { "text-anchor": "middle" }, rsvg);
+    txt(L, 12, "reward per step, R", { "text-anchor": "start", fill: LIFE }, rsvg);
+    txt(RW - Rr, 12, "running total, J", { "text-anchor": "end", fill: "var(--muted)" }, rsvg);
+
+    // running totals of the other lives
+    var j, pts, cum, dd, col, line;
+    for (j = paths.length - 1; j >= 1 && showGhosts; j--) {
+      pts = paths[j]; cum = 0; line = [];
+      for (k = 0; k <= N; k++) { cum += rOf(pts[k][1]); line.push((k ? "L" : "M") + X(k).toFixed(1) + " " + YC(cum).toFixed(1)); }
+      col = mix(badness(pts));
+      el("path", { d: line.join(" "), fill: "none", stroke: col, "stroke-width": 1.1, "stroke-linejoin": "round", opacity: 0.38 }, rsvg);
+      el("circle", { cx: X(N), cy: YC(cum), r: 2.4, fill: col, opacity: 0.9 }, rsvg);
+    }
+
+    // bars: reward per step for the highlighted life
+    pts = paths[0];
+    var bw = Math.max(iw / N * 0.62, 2);
+    for (k = 0; k <= N; k++) {
+      var r = rOf(pts[k][1]);
+      el("rect", { x: (X(k) - bw / 2).toFixed(1), y: YR(r).toFixed(1), width: bw.toFixed(1), height: (RH - B - YR(r)).toFixed(2), fill: LIFE, opacity: 0.4 }, rsvg);
+    }
+
+    // running total of the highlighted life
+    cum = 0; line = [];
+    for (k = 0; k <= N; k++) { cum += rOf(pts[k][1]); line.push((k ? "L" : "M") + X(k).toFixed(1) + " " + YC(cum).toFixed(1)); }
+    el("path", { d: line.join(" "), fill: "none", stroke: "var(--bg)", "stroke-width": 3.4, "stroke-linejoin": "round", opacity: 0.85 }, rsvg);
+    el("path", { d: line.join(" "), fill: "none", stroke: LIFE, "stroke-width": 1.8, "stroke-linejoin": "round", "stroke-linecap": "round" }, rsvg);
+    el("circle", { cx: X(N), cy: YC(cum), r: 4.5, fill: LIFE, stroke: mix(badness(pts)), "stroke-width": 2.5 }, rsvg);
+    txt(X(N) - 8, YC(cum) - 10, "J = " + cum.toFixed(1), { "text-anchor": "end", fill: "var(--ink)", style: "font-size:11px" }, rsvg);
+  }
+
+  function draw() {
+    svg.style.maxWidth = "none";
+    var cw = Math.round(svg.getBoundingClientRect().width) || 480;
+    DIM.h.W = cw; DIM.h.H = Math.round(clamp(cw * 0.62, 250, 400));
+    DIM.v.W = Math.min(cw, 480); DIM.v.H = Math.round(DIM.v.W * 1.45);
+    D = vertical ? DIM.v : DIM.h;
+    svg.setAttribute("viewBox", "0 0 " + D.W + " " + D.H);
+    svg.style.maxWidth = vertical ? D.W + "px" : "none";
+    svg.style.margin = "0 auto";
+    axisNote.textContent = vertical
+      ? "Time runs upward and cannot be reversed. The horizontal axis is position."
+      : "Time runs left to right and cannot be reversed. The vertical axis is position.";
+    orientBtn.querySelector(".lbl").textContent = vertical ? "Switch to horizontal" : "Switch to vertical";
+    orientBtn.setAttribute("data-v", vertical ? "1" : "0");
+
+    var eps = parseFloat(epsEl.value);
+    var beta = parseFloat(betaEl.value);
+    betaVal.textContent = beta.toFixed(1);
+    var paths = simulate(eps, beta);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    var k, i, c, c2;
+
+    // timelike cone from birth, clipped to the plot range
+    var up = [], down = [];
+    for (k = 0; k <= N; k++) {
+      up.push(P(k, Math.min(CAP * k, XR)));
+      down.unshift(P(k, Math.max(-CAP * k, -XR)));
+    }
+    el("polygon", { points: up.concat(down).join(" "), fill: "var(--wash)" }, svg);
+
+    // grid
+    var xs = [-10, -5, 0, 5, 10], ts = [0, 10, 20, 30, 40];
+    for (i = 0; i < xs.length; i++) {
+      c = pt(0, xs[i]); c2 = pt(N, xs[i]);
+      el("line", { x1: c[0], y1: c[1], x2: c2[0], y2: c2[1], stroke: "var(--line)", "stroke-width": xs[i] === 0 ? 1 : 0.6, opacity: xs[i] === 0 ? 0.9 : 0.5 }, svg);
+    }
+    for (i = 0; i < ts.length; i++) {
+      c = pt(ts[i], -XR); c2 = pt(ts[i], XR);
+      el("line", { x1: c[0], y1: c[1], x2: c2[0], y2: c2[1], stroke: "var(--line)", "stroke-width": 0.6, opacity: 0.5 }, svg);
+    }
+
+    // aim band and line
+    el("polygon", { points: [P(0, GOAL - 1), P(N, GOAL - 1), P(N, GOAL + 1), P(0, GOAL + 1)].join(" "), fill: "var(--time)", opacity: 0.1 }, svg);
+    c = pt(0, GOAL); c2 = pt(N, GOAL);
+    el("line", { x1: c[0], y1: c[1], x2: c2[0], y2: c2[1], stroke: "var(--time)", "stroke-width": 1.2, "stroke-dasharray": "6 4" }, svg);
+
+    var end = pt(N, GOAL + 1);
+    if (!vertical) {
+      txt(end[0], end[1] - 5, "highest reward, R", { fill: "var(--time)", "text-anchor": "end" }, svg);
+    } else {
+      txt(end[0] + 8, D.T - 10, "highest reward, R", { fill: "var(--time)", "text-anchor": "start" }, svg);
+    }
+
+    // axis labels
+    var o = pt(0, 0), t1 = pt(N, 0), pl = pt(0, -XR), pr = pt(0, XR);
+    if (!vertical) {
+      txt(o[0], D.H - 10, "birth", { "text-anchor": "start" }, svg);
+      txt(t1[0], D.H - 10, "end of life, n", { "text-anchor": "end" }, svg);
+      txt((o[0] + t1[0]) / 2, D.H - 10, "time t \u2192", { "text-anchor": "middle" }, svg);
+      txt(D.L - 6, pt(0, XR)[1] + 3, "+", { "text-anchor": "end" }, svg);
+      txt(D.L - 6, pt(0, -XR)[1] + 3, "\u2212", { "text-anchor": "end" }, svg);
+      txt(D.L - 6, o[1] + 4, "x", { "text-anchor": "end", "font-style": "italic" }, svg);
+    } else {
+      txt(o[0], D.H - D.B + 18, "birth", { "text-anchor": "middle" }, svg);
+      txt(D.L, D.T - 10, "end of life, n", { "text-anchor": "start" }, svg);
+      txt(pl[0], D.H - D.B + 34, "\u2212", { "text-anchor": "start" }, svg);
+      txt(pr[0], D.H - D.B + 34, "+", { "text-anchor": "end" }, svg);
+      txt(o[0], D.H - 6, "position x \u2192", { "text-anchor": "middle" }, svg);
+      var tl = txt(0, 0, "time t \u2192", { "text-anchor": "middle" }, svg);
+      tl.setAttribute("transform", "translate(11," + f1((D.T + D.H - D.B) / 2) + ") rotate(-90)");
+    }
+
+    // other lives, coloured by how close they end to the aim
+    var j, d, col, pts, e;
+    for (j = paths.length - 1; j >= 1 && showGhosts; j--) {
+      pts = paths[j];
+      d = badness(pts);
+      col = mix(d);
+      el("path", { d: pathD(pts), fill: "none", stroke: col, "stroke-width": 1.1, "stroke-linejoin": "round", "stroke-linecap": "round", opacity: 0.38 }, svg);
+      e = pt(N, pts[N][1]);
+      el("circle", { cx: e[0], cy: e[1], r: 2.6, fill: col, opacity: 0.9 }, svg);
+    }
+
+    // highlighted life
+    pts = paths[0];
+    var dstr = pathD(pts);
+    el("path", { d: dstr, fill: "none", stroke: "var(--bg)", "stroke-width": 3.4, "stroke-linejoin": "round", "stroke-linecap": "round", opacity: 0.85 }, svg);
+    el("path", { d: dstr, fill: "none", stroke: LIFE, "stroke-width": 1.5, "stroke-linejoin": "round", "stroke-linecap": "round", style: "filter: drop-shadow(0 0 4px rgba(183,156,255,0.7))" }, svg);
+    e = pt(N, pts[N][1]);
+    el("circle", { cx: e[0], cy: e[1], r: 4.5, fill: LIFE, stroke: mix(badness(pts)), "stroke-width": 2.5 }, svg);
+
+    // birth marker
+    el("circle", { cx: o[0], cy: o[1], r: 5, fill: "var(--bg)", stroke: "var(--ink)", "stroke-width": 2 }, svg);
+
+    // readout
+    var finals = paths.map(function (pp) { return pp[N][1]; });
+    var mean = finals.reduce(function (a, b) { return a + b; }, 0) / finals.length;
+    var sd = Math.sqrt(finals.reduce(function (a, b) { return a + (b - mean) * (b - mean); }, 0) / finals.length);
+    var msg = "";
+    if (beta === 0) msg += "<b>β = 0: no aims.</b> Choices are made evenly among the open options, so circumstances alone shape these lives. ";
+    if (eps === 0) msg += "<b>No outside influence.</b> Lives differ only through the person’s own varied choices, and they draw together as β rises. ";
+    else msg += "Same person, same decision style, different outside events. ";
+    msg += "The 12 lives end up spread by <b>" + sd.toFixed(1) + "</b> units at the end of life.";
+    if (eps >= 1.4 && beta > 0) msg += " When outside influence is large, choices count for less.";
+    msg += " The highlighted life earns <b>" + Math.round(jOf(paths[0]) * 100) + "%</b> of the maximum possible reward, added up over every step, not just the last one.";
+    readout.innerHTML = msg;
+    drawRewards(paths);
+  }
+
+  function spin(b) { b.classList.remove("spin"); void b.offsetWidth; b.classList.add("spin"); }
+  epsEl.addEventListener("input", draw);
+  betaEl.addEventListener("input", draw);
+  rollBtn.addEventListener("click", function () { spin(rollBtn); seed = Math.floor(Math.random() * 1e9); drawNoise(); draw(); });
+  ghostBtn.addEventListener("click", function () {
+    showGhosts = !showGhosts;
+    ghostBtn.querySelector(".lbl").textContent = showGhosts ? "Hide other lives" : "Show other lives";
+    ghostBtn.setAttribute("aria-pressed", String(showGhosts));
+    draw();
+  });
+  orientBtn.addEventListener("click", function () { vertical = !vertical; draw(); });
+
+  var rz; window.addEventListener("resize", function () { cancelAnimationFrame(rz); rz = requestAnimationFrame(draw); });
+
+  drawNoise();
+  draw();
+})();
+</script>
+<script type="module" src="/assets/js/lab.js"></script>
+</body>
+</html>

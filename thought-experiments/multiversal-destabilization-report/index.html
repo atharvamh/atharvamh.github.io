@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EARTH-616 // FRACTURE REPORT — TVA Archives</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Stencil:wght@700;900&family=Big+Shoulders:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#0a0d12;
+    --void-2:#0d1119;
+    --panel:#12161d;
+    --panel-2:#161b24;
+    --amber:#f2a93b;
+    --amber-dim:#a9762c;
+    --violet:#8b7bff;
+    --incursion:#ff5252;
+    --paper:#ece7db;
+    --paper-dim:#c9c4b4;
+    --slate:#7d8695;
+    --line:rgba(242,169,59,0.16);
+    --line-strong:rgba(242,169,59,0.35);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    background:var(--void);
+    color:var(--paper);
+    font-family:'Inter',sans-serif;
+    overflow-x:hidden;
+    position:relative;
+  }
+  ::selection{background:var(--amber);color:#1a1204;}
+
+  /* scanline / grain overlay */
+  .grain{
+    position:fixed;inset:0;pointer-events:none;z-index:200;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0px, rgba(255,255,255,0.02) 1px, transparent 1px, transparent 3px);
+    opacity:0.5;
+    mix-blend-mode:overlay;
+  }
+  .vignette{
+    position:fixed;inset:0;pointer-events:none;z-index:199;
+    background:radial-gradient(ellipse at 50% 40%, transparent 45%, rgba(0,0,0,0.55) 100%);
+  }
+
+  canvas#rift{position:fixed;inset:0;z-index:0;display:block;width:100%;height:100%;}
+
+  /* ---------- NAV ---------- */
+  header{
+    position:fixed;top:0;left:0;right:0;z-index:100;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px clamp(20px,5vw,56px);
+    background:linear-gradient(to bottom, rgba(10,13,18,0.92), transparent);
+    backdrop-filter:blur(6px);
+  }
+  .brand{
+    display:flex;align-items:center;gap:10px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;letter-spacing:0.18em;color:var(--paper-dim);
+  }
+  .brand .seal{
+    width:26px;height:26px;color:var(--amber);flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;
+    animation:seal-spin 26s linear infinite;
+  }
+  .brand .seal svg{width:100%;height:100%;display:block;}
+  @keyframes seal-spin{to{transform:rotate(360deg);}}
+  nav ul{display:flex;gap:clamp(16px,3vw,34px);list-style:none;}
+  nav a{
+    color:var(--paper-dim);text-decoration:none;
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.14em;
+    text-transform:uppercase;transition:color .25s;
+    position:relative;padding-bottom:3px;
+  }
+  nav a::after{content:'';position:absolute;left:0;bottom:0;width:0;height:1px;background:var(--amber);transition:width .3s;}
+  nav a:hover{color:var(--amber);}
+  nav a:hover::after{width:100%;}
+  @media (max-width:720px){nav ul{display:none;}}
+
+  /* ---------- STABILITY HUD ---------- */
+  .hud{
+    position:fixed;right:18px;top:50%;transform:translateY(-50%);
+    z-index:100;display:flex;flex-direction:column;align-items:center;gap:10px;
+    font-family:'JetBrains Mono',monospace;
+    opacity:0;transition:opacity .6s;
+    pointer-events:none;
+  }
+  .hud.show{opacity:1;}
+  .hud .label{
+    font-size:9px;letter-spacing:0.14em;color:var(--slate);
+    writing-mode:vertical-rl;text-orientation:mixed;
+    text-transform:uppercase;
+  }
+  .hud .track{
+    width:5px;height:180px;border-radius:4px;background:rgba(255,255,255,0.06);
+    position:relative;overflow:hidden;border:1px solid var(--line);
+  }
+  .hud .fill{
+    position:absolute;bottom:0;left:0;width:100%;
+    background:linear-gradient(to top, var(--incursion), var(--amber));
+    height:100%;transition:height .4s ease-out;
+  }
+  .hud .pct{font-size:12px;color:var(--amber);font-weight:600;letter-spacing:0.05em;}
+  @media (max-width:720px){
+    .hud{right:10px;transform:translateY(-50%) scale(0.85);}
+  }
+
+  section{position:relative;z-index:2;}
+
+  /* ---------- HERO ---------- */
+  .hero{
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:120px 20px 60px;position:relative;
+  }
+  .stamp{
+    font-family:'JetBrains Mono',monospace;
+    font-size:11px;letter-spacing:0.25em;color:var(--incursion);
+    border:1px solid rgba(255,82,82,0.5);padding:6px 14px;border-radius:2px;
+    text-transform:uppercase;margin-bottom:28px;
+    background:rgba(255,82,82,0.06);
+    animation:flicker 4s infinite;
+  }
+  @keyframes flicker{0%,92%,100%{opacity:1;}94%{opacity:0.3;}96%{opacity:1;}97%{opacity:0.4;}}
+  .hero h1{
+    font-family:'Big Shoulders Stencil',sans-serif;
+    font-weight:900;
+    font-size:clamp(64px,16vw,190px);
+    line-height:0.85;
+    color:var(--paper);
+    letter-spacing:0.01em;
+    text-shadow:0 0 40px rgba(242,169,59,0.25);
+  }
+  .hero h1 span{display:block;color:var(--amber);}
+  .hero .sub{
+    margin-top:22px;font-family:'JetBrains Mono',monospace;
+    color:var(--slate);font-size:clamp(12px,2vw,15px);letter-spacing:0.08em;
+    max-width:640px;
+  }
+  .hero .case{
+    margin-top:36px;display:flex;gap:28px;flex-wrap:wrap;justify-content:center;
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--paper-dim);
+    letter-spacing:0.1em;text-transform:uppercase;
+  }
+  .hero .case b{color:var(--amber);display:block;font-size:10px;margin-bottom:4px;font-weight:500;}
+  .scrollcue{
+    position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+    display:flex;flex-direction:column;align-items:center;gap:8px;
+    color:var(--slate);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.2em;
+  }
+  .scrollcue .bar{width:1px;height:32px;background:linear-gradient(to bottom, var(--amber), transparent);
+    animation:cuepulse 1.8s ease-in-out infinite;}
+  @keyframes cuepulse{0%,100%{opacity:0.3;}50%{opacity:1;}}
+
+  /* ---------- INTRO ---------- */
+  .intro{
+    max-width:760px;margin:0 auto;padding:80px 24px 40px;text-align:center;
+  }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.22em;
+    color:var(--amber);text-transform:uppercase;margin-bottom:18px;display:block;
+  }
+  .intro p{
+    font-size:clamp(17px,2.4vw,21px);line-height:1.65;color:var(--paper-dim);
+    font-weight:400;
+  }
+  .intro p strong{color:var(--paper);font-weight:600;}
+
+  /* ---------- FRACTURE LOG ---------- */
+  .log-head{text-align:center;padding:100px 24px 20px;}
+  .log-head h2{
+    font-family:'Big Shoulders',sans-serif;font-weight:800;
+    font-size:clamp(38px,7vw,72px);color:var(--paper);letter-spacing:-0.01em;
+  }
+  .log-head .eyebrow{margin-bottom:14px;}
+
+  .timeline{
+    max-width:920px;margin:0 auto;padding:40px 24px 60px;position:relative;
+  }
+  .timeline::before{
+    content:'';position:absolute;left:32px;top:0;bottom:0;width:1px;
+    background:linear-gradient(to bottom, var(--line-strong), rgba(255,82,82,0.4));
+  }
+  @media (max-width:640px){.timeline::before{left:18px;}}
+
+  .case-file{
+    position:relative;padding:0 0 70px 80px;
+    opacity:0;transform:translateY(28px);
+    transition:opacity .7s ease, transform .7s ease;
+  }
+  @media (max-width:640px){.case-file{padding-left:52px;}}
+  .case-file.in{opacity:1;transform:translateY(0);}
+  .case-file .node{
+    position:absolute;left:32px;top:6px;transform:translateX(-50%);
+    width:13px;height:13px;border-radius:50%;
+    background:var(--void);border:2px solid var(--amber);
+    box-shadow:0 0 0 4px rgba(242,169,59,0.08);
+    transition:border-color .4s, box-shadow .4s;
+  }
+  @media (max-width:640px){.case-file .node{left:18px;}}
+  .case-file.in .node{border-color:var(--incursion);box-shadow:0 0 0 6px rgba(255,82,82,0.12);}
+
+  .cf-num{
+    font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);
+    letter-spacing:0.14em;margin-bottom:6px;display:flex;gap:10px;align-items:center;
+  }
+  .cf-num .tag{
+    background:rgba(139,123,255,0.12);color:var(--violet);border:1px solid rgba(139,123,255,0.3);
+    padding:2px 8px;border-radius:3px;font-size:10px;text-transform:uppercase;
+  }
+  .cf-source{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--amber-dim);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:14px;}
+
+  .case-file h3{
+    font-family:'Big Shoulders',sans-serif;font-weight:700;
+    font-size:clamp(22px,3.5vw,32px);color:var(--paper);margin-bottom:16px;line-height:1.15;
+  }
+  .cf-body{
+    display:grid;grid-template-columns:1fr 1fr;gap:18px;
+  }
+  @media (max-width:640px){.cf-body{grid-template-columns:1fr;}}
+  .cf-block{
+    background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:16px 18px;
+    transition:border-color .3s, transform .3s;
+  }
+  .case-file:hover .cf-block{border-color:var(--line-strong);}
+  .cf-block .k{
+    font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.16em;
+    color:var(--amber);text-transform:uppercase;margin-bottom:8px;display:block;
+  }
+  .cf-block.fracture .k{color:var(--incursion);}
+  .cf-block p{font-size:14px;line-height:1.55;color:var(--paper-dim);}
+
+  /* ---------- INCURSION BANNER ---------- */
+  .incursion-banner{
+    text-align:center;padding:130px 24px;position:relative;
+  }
+  .incursion-banner h2{
+    font-family:'Big Shoulders Stencil',sans-serif;font-weight:900;
+    font-size:clamp(40px,9vw,110px);color:var(--incursion);
+    letter-spacing:0.02em;
+    text-shadow:0 0 50px rgba(255,82,82,0.4);
+  }
+  .incursion-banner .glitch{position:relative;display:inline-block;}
+  .incursion-banner p.note{
+    max-width:600px;margin:24px auto 0;color:var(--slate);font-family:'JetBrains Mono',monospace;
+    font-size:13px;line-height:1.7;letter-spacing:0.02em;
+  }
+
+  /* ---------- REGISTRY ---------- */
+  .registry{padding:60px 24px 100px;max-width:1160px;margin:0 auto;position:relative;isolation:isolate;}
+  .registry .log-head{padding-top:0;}
+  .registry::before{
+    content:'';position:absolute;inset:-40px -24px auto -24px;height:640px;z-index:-1;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 10%, rgba(139,123,255,0.14), transparent 65%);
+  }
+  .registry .eyebrow{color:var(--violet);}
+
+  .stats{display:flex;gap:clamp(20px,6vw,64px);justify-content:center;flex-wrap:wrap;margin:34px 0 8px;}
+  .stat{text-align:center;}
+  .stat .num{font-family:'Big Shoulders',sans-serif;font-weight:800;font-size:clamp(26px,3.6vw,38px);color:var(--violet);}
+  .stat .lbl{font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:0.14em;color:var(--slate);text-transform:uppercase;margin-top:2px;}
+
+  .filterbar{margin:36px 0 32px;padding:16px;background:var(--panel);border:1px solid rgba(139,123,255,0.22);border-radius:14px;}
+  .search-row{display:flex;gap:12px;align-items:center;margin-bottom:14px;}
+  .search-box{flex:1;position:relative;}
+  .search-box svg{position:absolute;left:14px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--slate);}
+  .search-box input{width:100%;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;
+    padding:11px 14px 11px 38px;color:var(--paper);font-family:'JetBrains Mono',monospace;font-size:13px;
+    letter-spacing:0.02em;outline:none;transition:border-color .25s;}
+  .search-box input:focus{border-color:var(--violet);}
+  .search-box input::placeholder{color:var(--slate);}
+  .result-count{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--slate);letter-spacing:0.08em;
+    white-space:nowrap;text-transform:uppercase;}
+
+  .tabs{display:flex;gap:8px;flex-wrap:wrap;}
+  .tab{
+    font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.06em;
+    text-transform:uppercase;padding:8px 14px;border:1px solid var(--line);
+    border-radius:20px;background:var(--panel-2);color:var(--paper-dim);cursor:pointer;
+    transition:all .25s;white-space:nowrap;
+  }
+  .tab:hover{border-color:var(--line-strong);color:var(--paper);}
+  .tab.active{font-weight:600;border-color:transparent;}
+
+  .u-section{margin-bottom:48px;}
+  .u-section.hidden{display:none;}
+  .u-head{display:flex;align-items:baseline;gap:14px;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--line);flex-wrap:wrap;}
+  .u-head .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+  .u-head h3{font-family:'Big Shoulders',sans-serif;font-weight:700;font-size:clamp(18px,2.4vw,24px);color:var(--paper);}
+  .u-head .u-name{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--slate);letter-spacing:0.06em;}
+  .u-head .u-count{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--slate);}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
+  .hero-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:15px;
+    cursor:pointer;transition:transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    display:flex;flex-direction:column;gap:9px;position:relative;overflow:hidden;}
+  .hero-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--u-color, var(--violet));}
+  .hero-card:hover, .hero-card:focus-visible{transform:translateY(-4px);border-color:var(--line-strong);
+    box-shadow:0 14px 30px -12px rgba(0,0,0,0.6);outline:none;}
+  .hero-card.filtered-out{display:none;}
+  .hc-top{display:flex;align-items:center;justify-content:space-between;}
+  .emblem{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;
+    font-family:'Big Shoulders',sans-serif;font-weight:800;font-size:12.5px;color:#0a0d12;flex-shrink:0;}
+  .axis-badge{width:23px;height:23px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+    background:rgba(255,255,255,0.05);flex-shrink:0;}
+  .axis-badge svg{width:13px;height:13px;}
+  .hero-card h4{font-family:'Big Shoulders',sans-serif;font-weight:700;font-size:15px;color:var(--paper);line-height:1.2;}
+  .hc-cat{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--paper-dim);letter-spacing:0.03em;line-height:1.4;}
+  .hc-faction{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--slate);letter-spacing:0.05em;
+    text-transform:uppercase;margin-top:auto;padding-top:4px;border-top:1px dashed var(--line);}
+
+  .empty-state{text-align:center;padding:70px 20px;color:var(--slate);font-family:'JetBrains Mono',monospace;
+    font-size:13px;letter-spacing:0.05em;display:none;}
+  .empty-state.show{display:block;}
+
+  .overlay{position:fixed;inset:0;z-index:300;background:rgba(6,8,11,0.78);backdrop-filter:blur(4px);
+    display:flex;align-items:center;justify-content:center;padding:24px;opacity:0;pointer-events:none;
+    transition:opacity .3s;}
+  .overlay.show{opacity:1;pointer-events:auto;}
+  .modal{background:var(--panel-2);border:1px solid rgba(139,123,255,0.35);border-radius:16px;max-width:640px;
+    width:100%;max-height:88vh;overflow-y:auto;padding:32px;position:relative;
+    transform:translateY(18px) scale(0.98);opacity:0;transition:transform .35s ease, opacity .35s ease;}
+  .overlay.show .modal{transform:translateY(0) scale(1);opacity:1;}
+  .modal-close{position:absolute;top:18px;right:18px;width:32px;height:32px;border-radius:50%;
+    background:rgba(255,255,255,0.06);border:1px solid var(--line);color:var(--paper-dim);
+    font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:all .2s;line-height:1;}
+  .modal-close:hover{background:var(--incursion);color:#fff;border-color:var(--incursion);}
+  .modal-head{display:flex;align-items:center;gap:16px;padding-right:40px;}
+  .modal-head .emblem{width:56px;height:56px;font-size:19px;border-radius:12px;}
+  .modal-head h3{font-family:'Big Shoulders',sans-serif;font-weight:800;font-size:clamp(22px,4vw,30px);color:var(--paper);line-height:1.1;}
+  .modal-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .modal-tags span{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.06em;
+    padding:3px 9px;border-radius:12px;border:1px solid var(--line);color:var(--paper-dim);text-transform:uppercase;}
+  .modal-body{margin-top:26px;display:grid;grid-template-columns:240px 1fr;gap:24px;}
+  @media (max-width:520px){.modal-body{grid-template-columns:1fr;}.modal{padding:24px;}}
+  .radar-wrap{display:flex;flex-direction:column;align-items:center;gap:14px;}
+  .radar-legend{display:flex;flex-direction:column;gap:6px;width:100%;}
+  .rl-row{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:10px;
+    color:var(--paper-dim);letter-spacing:0.04em;}
+  .rl-row svg{width:12px;height:12px;flex-shrink:0;}
+  .rl-row .rl-bar{flex:1;height:4px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden;}
+  .rl-row .rl-fill{display:block;height:100%;border-radius:3px;}
+  .rl-row .rl-val{width:14px;text-align:right;color:var(--slate);}
+  .modal-powers .k{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.16em;
+    color:var(--violet);text-transform:uppercase;margin-bottom:10px;display:block;}
+  .modal-powers p{font-size:14.5px;line-height:1.7;color:var(--paper-dim);}
+
+  /* ---------- FOOTER ---------- */
+  footer{
+    padding:60px 24px 50px;text-align:center;border-top:1px solid var(--line);
+    position:relative;z-index:2;
+  }
+  footer .seal-lg{
+    width:52px;height:52px;margin:0 auto 18px;color:var(--amber);
+    display:flex;align-items:center;justify-content:center;
+  }
+  footer .seal-lg svg{width:100%;height:100%;display:block;}
+  footer p{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--slate);letter-spacing:0.1em;text-transform:uppercase;}
+  footer p.small{margin-top:8px;font-size:9.5px;opacity:0.7;}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important;transition:none !important;}
+  }
+</style>
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<style>.hero > .crumbs{position:absolute;top:88px;left:clamp(20px,5vw,56px);margin:0;z-index:3}</style>
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<canvas id="rift"></canvas>
+<div class="vignette"></div>
+<div class="grain"></div>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="tva-mark" viewBox="0 0 100 100">
+      <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2.5"/>
+      <g stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55">
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(0 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(30 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(60 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(90 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(120 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(150 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(180 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(210 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(240 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(270 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(300 50 50)"/>
+        <line x1="50" y1="7" x2="50" y2="13" transform="rotate(330 50 50)"/>
+      </g>
+      <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M50 80 L50 56"/>
+        <path d="M50 56 L33 33"/>
+        <path d="M50 56 L67 33"/>
+        <path d="M33 33 L23 17"/>
+        <path d="M33 33 L39 15"/>
+        <path d="M67 33 L61 15"/>
+        <path d="M67 33 L77 17"/>
+      </g>
+      <circle cx="50" cy="80" r="3.5" fill="currentColor"/>
+    </symbol>
+    <symbol id="ic-search" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="M21 21l-4.3-4.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="ic-power" viewBox="0 0 24 24" fill="none"><path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-dur" viewBox="0 0 24 24" fill="none"><path d="M12 2l8 4v6c0 5-4 8.5-8 10-4-1.5-8-5-8-10V6l8-4z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-int" viewBox="0 0 24 24" fill="none"><path d="M9 18h6M10 21h4M12 3a7 7 0 0 0-4 12.7c.4.3.6.8.6 1.3v1h6.8v-1c0-.5.2-1 .6-1.3A7 7 0 0 0 12 3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-mys" viewBox="0 0 24 24" fill="none"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+    <symbol id="ic-tek" viewBox="0 0 24 24" fill="none"><rect x="7" y="7" width="10" height="10" rx="1.5" stroke="currentColor" stroke-width="1.6"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+    <symbol id="ic-spd" viewBox="0 0 24 24" fill="none"><path d="M4 12l5-5M4 12l5 5M12 12l5-5M12 12l5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<header>
+  <div class="brand"><span class="seal"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2.5"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55"><line x1="50" y1="7" x2="50" y2="13" transform="rotate(0 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(30 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(60 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(90 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(120 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(150 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(180 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(210 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(240 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(270 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(300 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(330 50 50)"/></g><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M50 80 L50 56"/><path d="M50 56 L33 33"/><path d="M50 56 L67 33"/><path d="M33 33 L23 17"/><path d="M33 33 L39 15"/><path d="M67 33 L61 15"/><path d="M67 33 L77 17"/></g><circle cx="50" cy="80" r="3.5" fill="currentColor"/></svg></span> T.V.A. ARCHIVES / MULTIVERSAL DESTABILIZATION REPORT</div>
+  <nav><ul>
+    <li><a href="#log">Fracture Log</a></li>
+    <li><a href="#incursion">Incursion</a></li>
+    <li><a href="#registry">Hero Registry</a></li>
+  </ul></nav>
+</header>
+
+<div class="hud" id="hud">
+  <span class="pct" id="hudPct">100%</span>
+  <div class="track"><div class="fill" id="hudFill" style="height:100%"></div></div>
+  <span class="label">EARTH-616 INTEGRITY</span>
+</div>
+
+<section class="hero">
+  <nav class="crumbs" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/#lab">Lab</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Multiversal Destabilization Report</span></nav>
+  <div class="stamp">Classification: Multiversal / Eyes Only</div>
+  <h1>EARTH<span>616</span></h1>
+  <p class="sub">Structural integrity report following the collapse of the Sacred Timeline.
+  Eight breach events, catalogued below, chart the path from a shielded reality to an active incursion window.</p>
+  <div class="case">
+    <div><b>Case No.</b> TVA&#8209;616&#8209;OMEGA</div>
+    <div><b>Status</b> Incursion Imminent</div>
+    <div><b>Anchor Being</b> Vacant</div>
+    <div><b>Filed under</b> Avengers: Doomsday</div>
+  </div>
+  <div class="scrollcue"><div class="bar"></div>SCROLL TO REVIEW</div>
+</section>
+
+<section class="intro">
+  <span class="eyebrow">Archive Summary</span>
+  <p>Even after the Infinity Stones were returned and the timeline was, in theory, made whole, <strong>Earth&#8209;616 never fully closed its wounds.</strong> A death at the end of time. A memory spell gone wrong. Chaos magic left to root. Each incident on its own was contained — survivable. Together, they are eight cracks in the same pane of glass. What follows is the case&#8209;by&#8209;case record of how one universe's shield came down.</p>
+</section>
+
+<section class="log-head" id="log">
+  <span class="eyebrow">Chronological · Case Files 01&ndash;08</span>
+  <h2>The Fracture Log</h2>
+</section>
+
+<div class="timeline" id="timeline">
+  <!-- case files injected by JS -->
+</div>
+
+<section class="incursion-banner" id="incursion">
+  <h2 class="glitch" id="glitchText">INCURSION<br>COLLISION COURSE</h2>
+  <p class="note">Per Clea's confirmation during the Darkhold dreamwalking incident, Earth&#8209;616 is no longer approaching a multiversal collision &mdash; it is inside one. The Anchor Being is vacant. The Loom no longer prunes. What comes next is Doctor Doom's to decide.</p>
+</section>
+
+<section class="registry" id="registry">
+  <div class="log-head" style="padding-bottom:0;">
+    <span class="eyebrow">Cross-Reality Personnel Index</span>
+    <h2>Multiversal Hero Registry</h2>
+  </div>
+
+  <div class="stats" id="stats">
+    <div class="stat"><div class="num" data-count="0">0</div><div class="lbl">Personnel</div></div>
+    <div class="stat"><div class="num" data-count="0">0</div><div class="lbl">Realities</div></div>
+    <div class="stat"><div class="num" data-count="0">0</div><div class="lbl">Factions</div></div>
+  </div>
+
+  <div class="filterbar">
+    <div class="search-row">
+      <div class="search-box">
+        <svg><use href="#ic-search"/></svg>
+        <input type="text" id="searchInput" placeholder="Search by name, category, or power…" autocomplete="off">
+      </div>
+      <div class="result-count" id="resultCount">— matches</div>
+    </div>
+    <div class="tabs" id="tabs"></div>
+  </div>
+
+  <div id="sections"></div>
+  <div class="empty-state" id="emptyState">No personnel match that query. Try a different name, category, or power keyword.</div>
+</section>
+
+<div class="overlay" id="overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalName">
+    <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+    <div class="modal-head">
+      <div class="emblem" id="modalEmblem"></div>
+      <div>
+        <h3 id="modalName"></h3>
+        <div class="modal-tags"><span id="modalUniverse"></span><span id="modalFaction"></span></div>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="radar-wrap">
+        <canvas id="radarCanvas" width="220" height="220"></canvas>
+        <div class="radar-legend" id="radarLegend"></div>
+      </div>
+      <div class="modal-powers">
+        <span class="k">Special Powers</span>
+        <p id="modalPowers"></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="seal-lg"><svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2.5"/><g stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55"><line x1="50" y1="7" x2="50" y2="13" transform="rotate(0 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(30 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(60 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(90 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(120 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(150 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(180 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(210 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(240 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(270 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(300 50 50)"/><line x1="50" y1="7" x2="50" y2="13" transform="rotate(330 50 50)"/></g><g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M50 80 L50 56"/><path d="M50 56 L33 33"/><path d="M50 56 L67 33"/><path d="M33 33 L23 17"/><path d="M33 33 L39 15"/><path d="M67 33 L61 15"/><path d="M67 33 L77 17"/></g><circle cx="50" cy="80" r="3.5" fill="currentColor"/></svg></div>
+  <p>Time Variance Authority &mdash; Multiversal Destabilization Report &mdash; Page 3/3</p>
+  <p class="small">For He Who Remains. For whoever comes next.</p>
+</footer>
+
+<script>
+/* ---------------- DATA ---------------- */
+const cases = [
+  {n:'01', tag:'Loki', source:'Loki — Season 1', title:'The Death of "He Who Remains"',
+    action:'After the Time Heist allowed Loki to escape, he and Sylvie reached the Citadel at the End of Time, where Sylvie killed He Who Remains.',
+    fracture:'His death stopped the TVA from pruning alternate realities, causing the Sacred Timeline to branch out of control and stripping away the cosmic shield protecting Earth-616.'},
+  {n:'02', tag:'Multiverse', source:'Spider-Man: No Way Home & Multiverse of Madness', title:'The Ruined Memory Spell & Portal Breaches',
+    action:"Doctor Strange's corrupted memory spell cracked Earth-616's physical barrier, while America Chavez's uncontrolled star-portals repeatedly punched holes through the dimensional boundary.",
+    fracture:'Multiversal variants, villains, and extradimensional entities directly invaded Earth-616, severely compromising the structural integrity of the reality barrier.'},
+  {n:'03', tag:'Magic', source:'WandaVision & Doctor Strange in the Multiverse of Madness', title:'Multiversal Dreamwalking & Dark Dimension Rifts',
+    action:'Wanda Maximoff created the Westview Hex using Chaos Magic and acquired the Darkhold. Later, Wanda and Strange used Darkhold-corrupted dreamwalking to possess variants across timelines, after which Clea carved open a physical rift to the Dark Dimension.',
+    fracture:'Chaos Magic corrupted local ley lines, and dreamwalking left cosmic footprints that trigger reality-annihilating incursions. Clea confirmed Earth-616 is on an active incursion collision course.'},
+  {n:'04', tag:'Cosmic', source:'The Marvels & Ant-Man / Quantum Realm', title:'Destruction of Space-Time Barriers & Quantum Breaches',
+    action:'Dar-Benn used Quantum Bands to violently tear interdimensional jump points, while Quantum Realm navigations bypassed standard space-time rules.',
+    fracture:"Space-time tore open, trapping Monica Rambeau in an alternate X-Men universe, while subatomic breaches linked Earth-616 directly to Kang the Conqueror's multiversal exile zone."},
+  {n:'05', tag:'TVA', source:'Deadpool & Wolverine', title:'The "Anchor Being" Vacuum & TVA Exploits',
+    action:"Tony Stark's death removed Earth-616's Anchor Being, while rogue TVA agents used Time Doors and Time Rippers to siphon and cross realities.",
+    fracture:'Earth-616 entered a natural state of timeline decay, and unauthorized cross-universe travel created a power vacuum primed for Doctor Doom to restructure reality.'},
+  {n:'06', tag:'Migration', source:'The Fantastic Four: First Steps & Doomsday', title:'The Fantastic Four Multiversal Migration',
+    action:"Originating from retro-futuristic Earth-828, the Fantastic Four utilize advanced interdimensional craft and Franklin Richards' cosmic energy to escape their collapsing reality.",
+    fracture:"Their arrival into Earth-616 brings dimensional refugees directly into the universe, serving as a primary catalyst for Doctor Doom's rise and imminent multiversal collapse."},
+  {n:'07', tag:'Celestial', source:'Eternals & Shang-Chi and the Legend of the Ten Rings', title:'Celestial Emergence & Multiversal Beacons',
+    action:'The aborted birth of the Celestial Tiamut released massive cosmic energy, while Shang-Chi unleashed the Ten Rings, broadcasting an internal signal across dimensions.',
+    fracture:'The energy surge destroyed Celestial cosmic stabilization on Earth-616, and the Ten Rings acted as a continuous multiversal homing flare flagging Earth-616 to external threats.'},
+  {n:'08', tag:'Loki', source:'Loki — Season 2', title:'The Re-Anchoring of the Yggdrasil Tree',
+    action:'Loki destroyed the malfunctioning Temporal Loom and gathered all dying timeline branches, taking his throne as the God of Stories to sustain the Multiverse in the shape of Yggdrasil.',
+    fracture:'While Loki preserved the timelines, infinitely branching realities were now free to expand without TVA pruning — making multiversal drift and incursions statistically inevitable.'},
+];
+
+const timelineEl = document.getElementById('timeline');
+cases.forEach(c=>{
+  const el = document.createElement('div');
+  el.className = 'case-file';
+  el.innerHTML = `
+    <div class="node"></div>
+    <div class="cf-num">CASE FILE ${c.n} <span class="tag">${c.tag}</span></div>
+    <div class="cf-source">${c.source}</div>
+    <h3>${c.title}</h3>
+    <div class="cf-body">
+      <div class="cf-block"><span class="k">The Action</span><p>${c.action}</p></div>
+      <div class="cf-block fracture"><span class="k">The Fracture</span><p>${c.fracture}</p></div>
+    </div>`;
+  timelineEl.appendChild(el);
+});
+
+/* ---------------- REGISTRY DATA ---------------- */
+const UNIVERSES = {
+  '616':   {code:'EARTH-616',        name:'Main MCU Timeline / Sacred Timeline',      color:'#f2a93b'},
+  '10005': {code:'EARTH-10005',      name:'20th Century Fox X-Men Universe',          color:'#8b7bff'},
+  '828':   {code:'EARTH-828',        name:'Retro-60s Future Universe',                color:'#5fd0a8'},
+  'spidey':{code:'EARTH-96283/120703', name:'Raimi & Webb Spider-Man Universes',      color:'#ff8fb1'},
+  '838':   {code:'EARTH-838',        name:'The Illuminati Reality',                   color:'#5bb8e0'},
+  'anim':  {code:'MULTI-DESIGNATE',  name:'Animated Spider-Verse Realities',          color:'#4fd1ff'},
+  'void':  {code:'VOID / EARTH-688', name:'Void Resistance & Sony Universe Variants', color:'#ff5252'},
+};
+
+const heroes = [
+{name:'Iron Man (Tony Stark)', universe:'616', faction:'Avengers & Core Protectors', category:'Technological / Armor Specialist', powers:'Genius-level intellect, master engineer, cybernetic integration, energy projection via Arc Reactor, flight, nanotech armor systems.'},
+{name:'Captain America (Steve Rogers)', universe:'616', faction:'Avengers & Core Protectors', category:'Enhanced Human / Super Soldier', powers:'Peak human strength, agility, stamina, and durability, accelerated healing factor, master hand-to-hand combatant, expert strategist.'},
+{name:'Captain America (Sam Wilson)', universe:'616', faction:'Avengers & Core Protectors', category:'Aerial Tactical Specialist', powers:'Master aerial acrobatics via Vibranium wings, flight, integrated drone reconnaissance (Redwing), tactical combat, Vibranium shield proficiency.'},
+{name:'Thor Odinson', universe:'616', faction:'Avengers & Core Protectors', category:'Cosmic / Asgardian God', powers:'Divine strength, weather and lightning manipulation, flight, immortality, energy projection, mastery of Mjolnir and Stormbreaker.'},
+{name:'Hulk (Bruce Banner)', universe:'616', faction:'Avengers & Core Protectors', category:'Gamma-Mutated Titan', powers:'Near-limitless physical strength scaling with anger, extreme durability, rapid cell regeneration, environmental immunity, genius-level nuclear/gamma physics intellect.'},
+{name:'Black Widow (Natasha Romanoff)', universe:'616', faction:'Avengers & Core Protectors', category:'Elite Espionage / Martial Artist', powers:"Master martial artist, elite covert assassin, expert marksmanship, tactical espionage, specialized weaponry (Widow's Bite)."},
+{name:'Hawkeye (Clint Barton)', universe:'616', faction:'Avengers & Core Protectors', category:'Elite Marksman / Tactical Combatant', powers:'Master archery with trick arrows, superhuman precision, expert tactician, master hand-to-hand combatant.'},
+{name:'Scarlet Witch (Wanda Maximoff)', universe:'616', faction:'Magic & Cosmic Defenders', category:'Nexus Being / Chaos Magic Wielder', powers:'Spontaneous creation, molecular reality warping, telekinesis, mind manipulation/telepathy, dreamwalking, dimension-transcending Chaos Magic.'},
+{name:'Doctor Strange (Stephen Strange)', universe:'616', faction:'Magic & Cosmic Defenders', category:'Master of the Mystic Arts', powers:'Eldritch magic manipulation, astral projection, dimension hopping, spellcasting, energy shields, artifact mastery (Sling Ring, Cloak of Levitation).'},
+{name:'Wong', universe:'616', faction:'Magic & Cosmic Defenders', category:'Sorcerer Supreme / Mystic Master', powers:'Eldritch magic mastery, portal creation, dimensional isolation, vast knowledge of ancient spellcraft and relic defense.'},
+{name:'Clea', universe:'616', faction:'Magic & Cosmic Defenders', category:'Faltine / Dark Dimension Sorceress', powers:'Dimensional rift creation, dark energy manipulation, teleportation, advanced magic mastery.'},
+{name:'Captain Marvel (Carol Danvers)', universe:'616', faction:'Magic & Cosmic Defenders', category:'Cosmic / Binary Energy Host', powers:'Photonic energy projection, binary form transformation, faster-than-light space flight, invulnerability, cosmic energy absorption.'},
+{name:'Monica Rambeau', universe:'616', faction:'Magic & Cosmic Defenders', category:'Energy / Electromagnetic Specialist', powers:'Energy spectrum absorption and manipulation, phase-shifting/intangibility, flight, interdimensional jump-point sealing.'},
+{name:'Ms. Marvel (Kamala Khan)', universe:'616', faction:'Magic & Cosmic Defenders', category:'Mutant / Hard-Light Construct Specialist', powers:'Hard-light energy projection, spatial stepping, physical elongation/size manipulation via Noor energy.'},
+{name:'Shang-Chi', universe:'616', faction:'Magic & Cosmic Defenders', category:'Extradimensional Artifact Wielder / Martial Artist', powers:'Mastery of the Ten Rings (immortality, energy blast projection, kinetic manipulation, levitation), master of Ta Lo martial arts.'},
+{name:'Vision', universe:'616', faction:'Magic & Cosmic Defenders', category:'Synthezoid / Cosmic Hybrid', powers:'Density manipulation (phasing & extreme durability), flight, solar energy beam projection, high-speed computation, super strength.'},
+{name:'Bucky Barnes (Winter Soldier)', universe:'616', faction:'The New Avengers / Counter-Terrorism Ops', category:'Super Soldier / Tactical Operative', powers:'Super soldier strength and endurance, Vibranium cybernetic arm (energy absorption & crushing force), elite marksmanship, tactical combat.'},
+{name:'Yelena Belova (Black Widow II)', universe:'616', faction:'The New Avengers / Counter-Terrorism Ops', category:'Elite Espionage / Martial Artist', powers:'Master assassin skills, acrobatic combat, expert in covert warfare, specialized tactical gear.'},
+{name:'Red Guardian (Alexei Shostakov)', universe:'616', faction:'The New Avengers / Counter-Terrorism Ops', category:'Super Soldier / Heavy Tank', powers:'Enhanced super soldier physical strength, durability, hand-to-hand brawling, specialized shield throwing.'},
+{name:'U.S. Agent (John Walker)', universe:'616', faction:'The New Avengers / Counter-Terrorism Ops', category:'Super Soldier / Tactical Specialist', powers:'Enhanced super soldier physical capabilities, aggressive tactical combat, Vibranium shield proficiency.'},
+{name:'Ghost (Ava Starr)', universe:'616', faction:'The New Avengers / Counter-Terrorism Ops', category:'Quantum Instability / Stealth Specialist', powers:'Molecular intangibility (phasing through matter), invisible stealth movement, quantum energy shifts, tactical hand-to-hand combat.'},
+{name:'Taskmaster (Antonia Dreykov)', universe:'616', faction:'The New Avengers / Counter-Terrorism Ops', category:'Mimetic Tactical Specialist', powers:'Photographic reflexes (instantly copies any observed physical movement or fighting style), master weapon proficiency.'},
+{name:'Sentry / Void (Bob Reynolds)', universe:'616', faction:'The New Avengers / Counter-Terrorism Ops', category:'Cosmic / Molecular Entity', powers:'Molecular manipulation, near-godlike physical strength and invulnerability, energy projection, high-speed flight, dark alter-ego manifestation (The Void).'},
+{name:'Hawkeye II (Kate Bishop)', universe:'616', faction:'Next-Gen Initiates & Young Avengers', category:'Tactical Marksman', powers:'Master archery with specialized trick arrows, acrobatic martial arts, tactical situational awareness.'},
+{name:'Wiccan (Billy Kaplan / Maximoff)', universe:'616', faction:'Next-Gen Initiates & Young Avengers', category:'Reincarnated Entity / Chaos Magic Wielder', powers:'Telepathy, telekinesis, reality warping, spellcasting, flight, mind reading.'},
+{name:'Stature / Stinger (Cassie Lang)', universe:'616', faction:'Next-Gen Initiates & Young Avengers', category:'Pym-Particle Specialist', powers:'Size manipulation (growing to giant scale or shrinking to subatomic level), suit-integrated durability.'},
+{name:'Ironheart (Riri Williams)', universe:'616', faction:'Next-Gen Initiates & Young Avengers', category:'Tech Genius / Armor Pilot', powers:'Genius engineering, high-tech flight armor equipped with repulsor blasts, micro-missiles, and Vibranium energy systems.'},
+{name:'Love (Adopted Daughter of Thor)', universe:'616', faction:'Next-Gen Initiates & Young Avengers', category:'Cosmic Entity Manifestation', powers:'Born from Eternity; divine cosmic energy projection, laser optic projection, Mjolnir wielding capability.'},
+{name:'Skaar (Son of Hulk)', universe:'616', faction:'Next-Gen Initiates & Young Avengers', category:'Gamma-Sakaaran Titan', powers:'Immense physical strength scaling with anger, high durability, Sakaaran warrior combat skills.'},
+{name:'Patriot (Eli Bradley)', universe:'616', faction:'Next-Gen Initiates & Young Avengers', category:'Enhanced Athlete', powers:'Enhanced physical strength, speed, and endurance, tactical combat proficiency.'},
+{name:'Ant-Man (Scott Lang)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Pym-Particle Specialist', powers:'Size alteration (microscopic to giant form), density shifting, communication and control over insect colonies via EMP helmet.'},
+{name:'Wasp (Hope van Dyne)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Pym-Particle Specialist', powers:'Size manipulation, bio-electric stinger blasts, winged flight, high-tech tactical combat.'},
+{name:'Spider-Man (Peter Parker)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Bio-Enhanced Human', powers:'Pre-cognitive "Spider-Sense," wall-crawling, superhuman strength, speed, and reflexes, custom web-shooting capabilities.'},
+{name:'Daredevil (Matt Murdock)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Bio-Enhanced Human / Street Defender', powers:'Echolocation radar sense, hyper-augmented physical senses, elite martial arts mastery, peak human athleticism.'},
+{name:'Black Panther (Shuri)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Wakandan Monarch / Vibranium Specialist', powers:'Enhanced super soldier capabilities via synthetic Heart-Shaped Herb, Vibranium suit kinetic absorption and discharge, genius engineering.'},
+{name:'She-Hulk (Jennifer Walters)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Gamma-Mutated Legal Defender', powers:'Superhuman physical strength, rapid cellular regeneration, high-level legal intellect, meta fourth-wall breaking.'},
+{name:'Agatha Harkness', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Ancient Witch / Dark Magic Wielder', powers:'Energy and magic absorption, illusion casting, coven magic spellcraft, immortality through dark sorcery.'},
+{name:'Death (Rio Vidal)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Cosmic Deity', powers:'Universal manifestation of mortality, soul collection, reality manipulation, invulnerability, dark nature magic.'},
+{name:'Moon Knight (Marc Spector / Steven Grant)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Avatar of Khonshu', powers:'Mystical armor generation, enhanced strength and durability tied to lunar phases, weapons expert, resurrection via deity intervention.'},
+{name:'The Punisher (Frank Castle)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Tactical Combat Specialist', powers:'Expert military strategist, master of firearms and heavy artillery, extreme pain tolerance, deadly hand-to-hand combat.'},
+{name:'Wonder Man (Simon Williams)', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Ionic Energy Mutate', powers:'Ionic energy physiology granting superhuman strength, virtual invulnerability, rapid flight, energy projection, immortality.'},
+{name:'Hercules', universe:'616', faction:'Street-Level, Supernatural & Wakandan Protectors', category:'Olympian God', powers:'Divine strength, immortality, invulnerability, golden mace combat mastery.'},
+{name:'Star-Lord (Peter Quill)', universe:'616', faction:'Guardians of the Galaxy & Eternals', category:'Intergalactic Adventurer', powers:'Expert pilot, master marksman with Element Guns, tactical space combat, specialized gadgetry.'},
+{name:'Rocket Raccoon', universe:'616', faction:'Guardians of the Galaxy & Eternals', category:'Genetically Altered Weapons Specialist', powers:'Master mechanical engineer, heavy artillery specialist, tactical combat leadership.'},
+{name:'Groot', universe:'616', faction:'Guardians of the Galaxy & Eternals', category:'Flora Colossus', powers:'Elastic plant-body manipulation, size growth, branch regeneration, immense physical strength, spore light generation.'},
+{name:'Sersi', universe:'616', faction:'Guardians of the Galaxy & Eternals', category:'Eternal / Matter Transmuter', powers:'Cosmic energy manipulation, inorganic/organic matter transmutation, immortality, physical invulnerability.'},
+{name:'Ikaris', universe:'616', faction:'Guardians of the Galaxy & Eternals', category:'Eternal / Cosmic Enforcer', powers:'Cosmic laser optic beams, high-speed flight, near-invulnerability, superhuman strength.'},
+{name:'Wolverine (Logan)', universe:'10005', faction:'Mutants & X-Men', category:'Mutant / Adamantium Weapon', powers:'Accelerated cellular healing factor, Adamantium-infused skeleton and retractable claws, enhanced animalistic senses, immortality.'},
+{name:'Professor X (Charles Xavier)', universe:'10005', faction:'Mutants & X-Men', category:'Omega-Level Mutant / Telepath', powers:'World-class telepathy, memory wiping/alteration, mind control, psychic paralysis, astral projection, consciousness transfer.'},
+{name:'Magneto (Erik Lehnsherr)', universe:'10005', faction:'Mutants & X-Men', category:'Alpha/Omega-Level Mutant / Metal Controller', powers:'Electro-magnetic field control, metal manipulation at a molecular scale, flight via magnetic polarization, force field creation.'},
+{name:'Jean Grey', universe:'10005', faction:'Mutants & X-Men', category:'Omega-Level Mutant / Phoenix Force Host', powers:'Telekinesis, telepathy, matter disintegration, energy manipulation, cosmic resurrection (via Phoenix).'},
+{name:'Quicksilver (Peter Maximoff)', universe:'10005', faction:'Mutants & X-Men', category:'Mutant Speedster', powers:'Superhuman speed, hyper-accelerated perception and reaction times, kinetic force generation.'},
+{name:'Deadpool (Wade Wilson)', universe:'10005', faction:'Mercenaries & Allies', category:'Genetically Altered Mutant / Mercenary', powers:'Hyper-accelerated healing factor (survives decapitation), medium awareness (fourth-wall breaking), master swordsman and marksman, physical pain immunity.'},
+{name:'Mister Fantastic (Reed Richards)', universe:'828', faction:'The Fantastic Four', category:'Cosmic-Mutated Human / Genius', powers:'Hyper-elastic body elasticity, density alteration, top-tier multiversal intellect, spatial engineering.'},
+{name:'Invisible Woman (Sue Storm)', universe:'828', faction:'The Fantastic Four', category:'Cosmic-Mutated Human', powers:'Light bending/invisibility generation, telekinetic psionic force field projection (offensive and defensive).'},
+{name:'Human Torch (Johnny Storm)', universe:'828', faction:'The Fantastic Four', category:'Cosmic-Mutated Human', powers:'Plasma body conversion, thermokinesis/pyrokinesis, flight, supernova energy discharge.'},
+{name:'The Thing (Ben Grimm)', universe:'828', faction:'The Fantastic Four', category:'Cosmic-Mutated Human / Rock Titan', powers:'Heavy organic rock armor, immense physical strength, shockwave generation, high environmental durability.'},
+{name:'Spider-Man (Tobey Maguire — Earth-96283)', universe:'spidey', faction:'Alternate Spider-Men', category:'Bio-Mutated Human', powers:'Organic web generation from wrists, superhuman strength, Spider-Sense, wall-crawling, extreme structural durability.'},
+{name:'Spider-Man (Andrew Garfield — Earth-120703)', universe:'spidey', faction:'Alternate Spider-Men', category:'Bio-Enhanced Human', powers:'Advanced acrobatic agility, Spider-Sense, mechanical web-shooter innovation, high-speed combat reaction.'},
+{name:'Mister Fantastic (Reed Richards) — 838', universe:'838', faction:'The Illuminati Council', category:'Illuminati Leader / Genius', powers:'Hyper-stretching, high-level intelligence, usage of interdimensional Time Doors.'},
+{name:'Black Bolt (Blackagar Boltagon)', universe:'838', faction:'The Illuminati Council', category:'Inhuman King', powers:'Hypersonic quasi-sonic voice capable of particle destruction with a whisper, physical enhancement, flight.'},
+{name:'Captain Carter (Peggy Carter)', universe:'838', faction:'The Illuminati Council', category:'Super Soldier', powers:'Peak human athleticism, enhanced strength and agility, Vibranium jetpack flight, shield combat mastery.'},
+{name:'Spider-Man (Miles Morales — Earth-1610)', universe:'anim', faction:'Animated Spider-Verse Realities', category:'Bio-Enhanced Human / Spider-Variant', powers:'Bio-electric Venom Blasts, active optical camouflage (invisibility), Spider-Sense, wall-crawling, acrobatic combat.'},
+{name:'Spider-Gwen (Gwen Stacy — Earth-65)', universe:'anim', faction:'Animated Spider-Verse Realities', category:'Bio-Enhanced Human / Spider-Variant', powers:'Spider-Sense, acrobatic web-slinging, interdimensional navigation via Go-Home wrist devices.'},
+{name:"Spider-Man 2099 (Miguel O'Hara — Earth-928)", universe:'anim', faction:'Animated Spider-Verse Realities', category:'Genetically Altered Spider-Variant', powers:'Accelerated vision, laser web-weaving, clawed climbing, high-speed flight, Spider-Society leadership.'},
+{name:'Blade (Eric Brooks)', universe:'void', faction:'The Void Resistance Team', category:'Dhampir / Vampire-Human Hybrid', powers:'Vampire strengths (speed, durability, sight) without solar vulnerability, master martial artist, weapons expert.'},
+{name:'Gambit (Remy LeBeau)', universe:'void', faction:'The Void Resistance Team', category:'Mutant Kinetic Specialist', powers:'Kinetic energy charging of inorganic matter (explosive playing cards), master staff combatant, hypnotic charm.'},
+{name:'X-23 (Laura Kinney)', universe:'void', faction:'The Void Resistance Team', category:'Mutant Clone', powers:'Adamantium retractable foot and hand claws, accelerated healing factor, hyper-feral agility.'},
+];
+
+const AXES = [
+  {id:'POWER', label:'Power',       icon:'ic-power', color:'#f2a93b', kw:['strength','power','force','blast','projection','energy','discharge','destruction','divine','cosmic','laser','beam','punch','smash','shockwave','optic beam']},
+  {id:'DUR',   label:'Durability',  icon:'ic-dur',   color:'#5fd0a8', kw:['durab','invulnerab','healing','regenerat','resilien','immortal','armor','tank','endurance','tough']},
+  {id:'INT',   label:'Intellect',   icon:'ic-int',   color:'#5bb8e0', kw:['intellect','genius','engineer','strateg','tactician','knowledge','computation','scientist']},
+  {id:'MYS',   label:'Mystic',      icon:'ic-mys',   color:'#8b7bff', kw:['magic','mystic','sorcer','chaos','spell','eldritch','dimension','dark','faltine','telepath','psychic','reality warp','astral']},
+  {id:'TEK',   label:'Tech',        icon:'ic-tek',   color:'#ff8fb1', kw:['tech','cybernetic','nanotech','engineering','mechanical','weapon','gadget','suit','vibranium','armor']},
+  {id:'SPD',   label:'Speed',       icon:'ic-spd',   color:'#ff5252', kw:['speed','agility','acrobat','reflexes','flight','fast','velocity']},
+];
+
+function scoreHero(h){
+  const t = (h.powers + ' ' + h.category).toLowerCase();
+  return AXES.map(ax=>{
+    let hits = 0;
+    ax.kw.forEach(w=>{ if(t.includes(w)) hits++; });
+    return Math.max(1, Math.min(5, 1 + hits));
+  });
+}
+
+function initials(name){
+  const clean = name.split('(')[0].trim().split('—')[0].trim();
+  const words = clean.split(' ').filter(w=>w.length>1 && !/^(of|the|&)$/i.test(w));
+  return (words.slice(0,2).map(w=>w[0]).join('') || clean.slice(0,2)).toUpperCase();
+}
+
+const sectionsEl = document.getElementById('sections');
+const tabsEl = document.getElementById('tabs');
+const emptyState = document.getElementById('emptyState');
+const resultCount = document.getElementById('resultCount');
+
+const allTab = document.createElement('button');
+allTab.className = 'tab active'; allTab.textContent = 'All Realities'; allTab.dataset.id='all';
+allTab.addEventListener('click', ()=>selectTab('all'));
+tabsEl.appendChild(allTab);
+Object.entries(UNIVERSES).forEach(([id,u])=>{
+  const tab = document.createElement('button');
+  tab.className = 'tab'; tab.dataset.id = id;
+  tab.style.setProperty('--tint', u.color);
+  tab.textContent = u.code;
+  tab.addEventListener('click', ()=>selectTab(id));
+  tabsEl.appendChild(tab);
+});
+
+function selectTab(id){
+  document.querySelectorAll('.tab').forEach(t=>{
+    const active = t.dataset.id===id;
+    t.classList.toggle('active', active);
+    t.style.background = active ? (id==='all' ? 'var(--violet)' : t.style.getPropertyValue('--tint')) : '';
+    t.style.color = active ? '#0a0d12' : '';
+  });
+  document.querySelectorAll('.u-section').forEach(sec=>{
+    sec.classList.toggle('hidden', !(id==='all' || sec.dataset.uid===id));
+  });
+  applyFilter();
+}
+
+Object.entries(UNIVERSES).forEach(([uid,u])=>{
+  const list = heroes.filter(h=>h.universe===uid);
+  const section = document.createElement('div');
+  section.className = 'u-section';
+  section.dataset.uid = uid;
+  section.id = 'u-'+uid;
+  section.innerHTML = `
+    <div class="u-head">
+      <span class="dot" style="background:${u.color}"></span>
+      <h3>${u.code}</h3>
+      <span class="u-name">${u.name}</span>
+      <span class="u-count">${list.length} FILED</span>
+    </div>
+    <div class="grid"></div>`;
+  const grid = section.querySelector('.grid');
+  list.forEach(h=>{
+    const idx = heroes.indexOf(h);
+    const scores = scoreHero(h);
+    const topAxisIdx = scores.indexOf(Math.max(...scores));
+    const topAxis = AXES[topAxisIdx];
+    const card = document.createElement('div');
+    card.className = 'hero-card';
+    card.tabIndex = 0;
+    card.setAttribute('role','button');
+    card.dataset.idx = idx;
+    card.style.setProperty('--u-color', u.color);
+    card.dataset.search = (h.name+' '+h.category+' '+h.faction+' '+h.powers).toLowerCase();
+    card.innerHTML = `
+      <div class="hc-top">
+        <div class="emblem" style="background:${u.color}">${initials(h.name)}</div>
+        <div class="axis-badge" style="color:${topAxis.color}" title="${topAxis.label}"><svg><use href="#${topAxis.icon}"/></svg></div>
+      </div>
+      <h4>${h.name}</h4>
+      <div class="hc-cat">${h.category}</div>
+      <div class="hc-faction">${h.faction}</div>`;
+    card.addEventListener('click', ()=>openModal(idx));
+    card.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openModal(idx);} });
+    grid.appendChild(card);
+  });
+  sectionsEl.appendChild(section);
+});
+
+const searchInput = document.getElementById('searchInput');
+searchInput.addEventListener('input', applyFilter);
+
+function applyFilter(){
+  const q = searchInput.value.trim().toLowerCase();
+  let visibleCount = 0;
+  document.querySelectorAll('.u-section').forEach(sec=>{
+    if(sec.classList.contains('hidden')) return;
+    let sectionVisible = 0;
+    sec.querySelectorAll('.hero-card').forEach(card=>{
+      const match = !q || card.dataset.search.includes(q);
+      card.classList.toggle('filtered-out', !match);
+      if(match){ sectionVisible++; visibleCount++; }
+    });
+    sec.style.display = sectionVisible===0 ? 'none' : '';
+  });
+  resultCount.textContent = visibleCount + (visibleCount===1 ? ' MATCH' : ' MATCHES');
+  emptyState.classList.toggle('show', visibleCount===0);
+}
+
+const factionSet = new Set(heroes.map(h=>h.faction));
+const statsTargets = [heroes.length, Object.keys(UNIVERSES).length, factionSet.size];
+document.querySelectorAll('#stats .num').forEach((el,i)=>{
+  const target = statsTargets[i];
+  let cur = 0;
+  const step = Math.max(1, Math.ceil(target/40));
+  const tick = ()=>{
+    cur = Math.min(target, cur+step);
+    el.textContent = cur;
+    if(cur<target) requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+});
+
+/* ---------------- REGISTRY MODAL ---------------- */
+const overlay = document.getElementById('overlay');
+const modalClose = document.getElementById('modalClose');
+const radarCanvas = document.getElementById('radarCanvas');
+const rctx = radarCanvas.getContext('2d');
+let lastFocused = null;
+
+function openModal(idx){
+  const h = heroes[idx];
+  const u = UNIVERSES[h.universe];
+  const scores = scoreHero(h);
+
+  document.getElementById('modalEmblem').textContent = initials(h.name);
+  document.getElementById('modalEmblem').style.background = u.color;
+  document.getElementById('modalName').textContent = h.name;
+  document.getElementById('modalUniverse').textContent = u.code;
+  document.getElementById('modalFaction').textContent = h.faction;
+  document.getElementById('modalPowers').textContent = h.powers;
+
+  const legend = document.getElementById('radarLegend');
+  legend.innerHTML = AXES.map((ax,i)=>`
+    <div class="rl-row">
+      <svg style="color:${ax.color}"><use href="#${ax.icon}"/></svg>
+      <span style="width:64px">${ax.label}</span>
+      <span class="rl-bar"><span class="rl-fill" style="width:${scores[i]*20}%;background:${ax.color}"></span></span>
+      <span class="rl-val">${scores[i]}</span>
+    </div>`).join('');
+
+  drawRadar(scores, u.color);
+
+  lastFocused = document.activeElement;
+  overlay.classList.add('show');
+  document.body.style.overflow = 'hidden';
+  modalClose.focus();
+}
+function closeModal(){
+  overlay.classList.remove('show');
+  document.body.style.overflow = '';
+  if(lastFocused) lastFocused.focus();
+}
+modalClose.addEventListener('click', closeModal);
+overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && overlay.classList.contains('show')) closeModal(); });
+
+function drawRadar(scores, accent){
+  const size = 220, cx = size/2, cy = size/2, R = 82, n = AXES.length;
+  rctx.clearRect(0,0,size,size);
+  for(let ring=1; ring<=5; ring++){
+    rctx.beginPath();
+    for(let i=0;i<=n;i++){
+      const a = (Math.PI*2*i/n) - Math.PI/2;
+      const r = R*ring/5;
+      const x = cx + r*Math.cos(a), y = cy + r*Math.sin(a);
+      i===0 ? rctx.moveTo(x,y) : rctx.lineTo(x,y);
+    }
+    rctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    rctx.lineWidth = 1;
+    rctx.stroke();
+  }
+  for(let i=0;i<n;i++){
+    const a = (Math.PI*2*i/n) - Math.PI/2;
+    const x = cx + R*Math.cos(a), y = cy + R*Math.sin(a);
+    rctx.beginPath(); rctx.moveTo(cx,cy); rctx.lineTo(x,y);
+    rctx.strokeStyle = 'rgba(255,255,255,0.07)'; rctx.stroke();
+  }
+  rctx.beginPath();
+  scores.forEach((s,i)=>{
+    const a = (Math.PI*2*i/n) - Math.PI/2;
+    const r = R*s/5;
+    const x = cx + r*Math.cos(a), y = cy + r*Math.sin(a);
+    i===0 ? rctx.moveTo(x,y) : rctx.lineTo(x,y);
+  });
+  rctx.closePath();
+  rctx.fillStyle = accent + '33';
+  rctx.fill();
+  rctx.strokeStyle = accent;
+  rctx.lineWidth = 2;
+  rctx.stroke();
+  scores.forEach((s,i)=>{
+    const a = (Math.PI*2*i/n) - Math.PI/2;
+    const r = R*s/5;
+    const x = cx + r*Math.cos(a), y = cy + r*Math.sin(a);
+    rctx.beginPath(); rctx.arc(x,y,3,0,Math.PI*2);
+    rctx.fillStyle = accent; rctx.fill();
+  });
+}
+
+selectTab('all');
+
+/* ---------------- STABILITY HUD ---------------- */
+const hud = document.getElementById('hud');
+const hudFill = document.getElementById('hudFill');
+const hudPct = document.getElementById('hudPct');
+const caseFiles = document.querySelectorAll('.case-file');
+const stabilitySteps = [100,88,75,62,49,36,22,4];
+
+const io = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(entry.isIntersecting){
+      entry.target.classList.add('in');
+      const idx = Array.from(caseFiles).indexOf(entry.target);
+      const val = stabilitySteps[idx] ?? 0;
+      hudFill.style.height = val + '%';
+      hudPct.textContent = val + '%';
+    }
+  });
+},{threshold:0.4});
+caseFiles.forEach(cf=>io.observe(cf));
+
+const logSection = document.getElementById('log');
+const registrySection = document.getElementById('registry');
+const hudObserver = new IntersectionObserver((entries)=>{
+  entries.forEach(entry=>{
+    if(entry.target===logSection){
+      hud.classList.toggle('show', entry.isIntersecting || entry.boundingClientRect.top < 0);
+    }
+  });
+},{threshold:0});
+hudObserver.observe(logSection);
+
+window.addEventListener('scroll', ()=>{
+  const logTop = logSection.getBoundingClientRect().top;
+  const regTop = registrySection.getBoundingClientRect().top;
+  const winH = window.innerHeight;
+  if(logTop < winH*0.8 && regTop > 0){
+    hud.classList.add('show');
+  } else {
+    hud.classList.remove('show');
+  }
+});
+
+/* ---------------- CANVAS RIFT BACKGROUND ---------------- */
+const canvas = document.getElementById('rift');
+const ctx = canvas.getContext('2d');
+let w,h,particles=[];
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function resize(){
+  w = canvas.width = window.innerWidth;
+  h = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function initParticles(){
+  particles = [];
+  const count = Math.min(90, Math.floor((w*h)/16000));
+  for(let i=0;i<count;i++){
+    particles.push({
+      x: Math.random()*w,
+      y: Math.random()*h,
+      r: Math.random()*1.6+0.4,
+      vx: (Math.random()-0.5)*0.15,
+      vy: (Math.random()-0.5)*0.15,
+      hue: Math.random()>0.75 ? 'violet' : 'amber',
+      tw: Math.random()*Math.PI*2,
+    });
+  }
+}
+initParticles();
+window.addEventListener('resize', initParticles);
+
+let redMix = 0, violetMix = 0;
+const incursionElBg = document.getElementById('incursion');
+const registryElBg = document.getElementById('registry');
+function updateColorMix(){
+  const scrollY = window.scrollY;
+  const incursionEnd = incursionElBg.offsetTop + incursionElBg.offsetHeight;
+  const registryStart = registryElBg.offsetTop;
+  const registryEnd = registryElBg.offsetTop + registryElBg.offsetHeight;
+  const rawRed = Math.min(1, scrollY / Math.max(1, incursionEnd));
+  const rawViolet = Math.min(1, Math.max(0, (scrollY - registryStart) / Math.max(1, registryEnd - registryStart)));
+  violetMix = rawViolet;
+  redMix = rawRed * (1 - rawViolet);
+}
+window.addEventListener('scroll', updateColorMix);
+window.addEventListener('resize', updateColorMix);
+updateColorMix();
+
+function draw(t){
+  ctx.clearRect(0,0,w,h);
+
+  // deep gradient base: amber -> incursion red through the fracture log, then red -> violet through the registry
+  const grad = ctx.createRadialGradient(w*0.5, h*0.35, 0, w*0.5, h*0.35, Math.max(w,h)*0.75);
+  const rr = 20 + redMix*40 + violetMix*10;
+  const gg = 17 - redMix*10 + violetMix*6;
+  const bb = 28 - redMix*15 + violetMix*45;
+  grad.addColorStop(0, `rgba(${rr},${gg},${bb},1)`);
+  grad.addColorStop(1, 'rgba(10,13,18,1)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,w,h);
+
+  // rift arcs
+  ctx.save();
+  ctx.translate(w*0.5, h*0.42);
+  const arcCount = 4;
+  for(let i=0;i<arcCount;i++){
+    const angle = (t*0.00004) + i*(Math.PI/2.1);
+    const radius = Math.min(w,h)*0.32 + i*40 + Math.sin(t*0.0006+i)*14;
+    ctx.beginPath();
+    ctx.strokeStyle = i%2===0
+      ? `rgba(242,169,59,${0.10 - i*0.015})`
+      : `rgba(139,123,255,${0.08 - i*0.012})`;
+    ctx.lineWidth = 1.2;
+    ctx.arc(0,0,radius, angle, angle+Math.PI*1.3);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // particles
+  particles.forEach(p=>{
+    p.x += p.vx; p.y += p.vy; p.tw += 0.02;
+    if(p.x<0)p.x=w; if(p.x>w)p.x=0;
+    if(p.y<0)p.y=h; if(p.y>h)p.y=0;
+    const alpha = 0.35 + Math.sin(p.tw)*0.25;
+    ctx.beginPath();
+    ctx.fillStyle = p.hue==='violet'
+      ? `rgba(139,123,255,${alpha*0.7})`
+      : `rgba(242,169,59,${alpha})`;
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  if(!reduceMotion) requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+if(reduceMotion){
+  // draw a single static frame
+  draw(0);
+}
+</script>
+</body>
+</html>

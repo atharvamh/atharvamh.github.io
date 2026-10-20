@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACID, Transactions &amp; Concurrency — Database Engineering Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ============ TOKENS ============ */
+:root{
+  --paper:#12151C;
+  --panel:#1A1F29;
+  --ink:#E7EAF1;
+  --ink-soft:#AAB2C2;
+  --ink-faint:#727C8D;
+  --line:#2B3140;
+  --line-soft:#232936;
+
+  --write:#DD8452;      /* mutation / danger / write-path */
+  --write-soft:#2B211B;
+  --write-line:#6B4732;
+
+  --read:#4FB3A0;       /* snapshot / read-path / safe */
+  --read-soft:#16241F;
+  --read-line:#31584F;
+
+  --code-bg:#0C0F16;
+  --code-ink:#E7ECF3;
+  --code-line:#242C3D;
+
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --sidebar-w: 272px;
+  --content-w: 700px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--read); text-decoration:none;}
+a:hover{text-decoration:underline;}
+a:focus-visible, button:focus-visible, summary:focus-visible{
+  outline:2px solid var(--read);
+  outline-offset:2px;
+}
+
+/* ============ LAYOUT ============ */
+.layout{
+  display:grid;
+  grid-template-columns: var(--sidebar-w) minmax(0,1fr);
+  max-width:1180px;
+  margin:0 auto;
+}
+
+/* ---- Sidebar ---- */
+.sidebar{
+  padding:40px 28px 40px 32px;
+  position:sticky;
+  top:0;
+  align-self:start;
+  height:100vh;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+}
+.sidebar-back{
+  display:inline-block;
+  font-size:13px;
+  color:var(--ink-faint);
+  margin-bottom:28px;
+}
+.sidebar-back:hover{color:var(--read);}
+.sidebar-title{
+  font-family:var(--serif);
+  font-size:19px;
+  font-weight:600;
+  line-height:1.3;
+  margin:0 0 4px;
+  color:var(--ink);
+}
+.sidebar-sub{
+  font-size:13px;
+  color:var(--ink-faint);
+  margin:0 0 30px;
+}
+.toc-module{
+  margin-bottom:22px;
+}
+.toc-module-label{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:0 0 8px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--line-soft);
+}
+.toc-module ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.toc-module li{
+  margin:0;
+}
+.toc-link{
+  display:block;
+  position:relative;
+  padding:6px 0 6px 14px;
+  font-size:13.5px;
+  color:var(--ink-soft);
+  border-left:2px solid transparent;
+  transition:border-color .15s ease, color .15s ease;
+}
+.toc-link:hover{ color:var(--ink); text-decoration:none;}
+.toc-link.active{
+  color:var(--ink);
+  font-weight:600;
+  border-left-color:var(--read);
+}
+
+/* ---- Main content ---- */
+main{
+  padding:56px 48px 120px;
+  min-width:0;
+}
+.doc{
+  max-width:var(--content-w);
+}
+.doc-header{
+  margin-bottom:56px;
+}
+.doc-header .kicker{
+  font-size:13.5px;
+  color:var(--ink-faint);
+  margin:0 0 10px;
+}
+h1.doc-title{
+  font-family:var(--serif);
+  font-size:40px;
+  font-weight:600;
+  line-height:1.15;
+  letter-spacing:-.01em;
+  margin:0 0 16px;
+  color:var(--ink);
+}
+.doc-dek{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin:0;
+}
+
+.module-flag{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:15px;
+  color:var(--ink-faint);
+  margin:64px 0 6px;
+}
+.module-flag:first-of-type{margin-top:0;}
+
+section.card{
+  margin-bottom:64px;
+  scroll-margin-top:32px;
+}
+h2.sec-title{
+  font-family:var(--serif);
+  font-size:28px;
+  font-weight:600;
+  line-height:1.25;
+  margin:0 0 22px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line);
+  color:var(--ink);
+}
+h3.sub-title{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:600;
+  margin:36px 0 12px;
+  color:var(--ink);
+}
+h4.mini-title{
+  font-size:14.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:22px 0 8px;
+}
+p{margin:0 0 16px;}
+ul,ol{margin:0 0 16px; padding-left:22px;}
+li{margin-bottom:6px;}
+strong{color:var(--ink); font-weight:600;}
+em{color:var(--ink-soft);}
+
+code{
+  font-family:var(--mono);
+  font-size:.86em;
+  background:var(--line-soft);
+  padding:.15em .4em;
+  border-radius:3px;
+  color:var(--ink);
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  padding:16px 18px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  border:1px solid var(--code-line);
+}
+pre code{
+  background:none;
+  padding:0;
+  color:inherit;
+  font-size:13.5px;
+  line-height:1.6;
+}
+
+/* ---- Problem / Solution pairing ---- */
+.case{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+  margin:22px 0 26px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+@media(min-width:640px){
+  .case{ grid-template-columns:1fr 1fr; }
+}
+.case > div{ padding:18px 20px; }
+.case .problem{
+  background:var(--write-soft);
+  border-left:3px solid var(--write);
+}
+.case .solution{
+  background:var(--read-soft);
+  border-left:3px solid var(--read);
+}
+@media(min-width:640px){
+  .case .problem{ border-right:1px solid var(--line); }
+}
+.case .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+.case .problem .label{ color:var(--write); }
+.case .solution .label{ color:var(--read); }
+.case p:last-child{ margin-bottom:0; }
+
+/* ---- Note / callout (margin-note style) ---- */
+.note{
+  margin:20px 0 26px;
+  padding:2px 0 2px 18px;
+  border-left:3px solid var(--line);
+}
+.note.write{ border-left-color:var(--write); }
+.note.read{ border-left-color:var(--read); }
+.note .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink-faint);
+  margin-bottom:6px;
+}
+.note p{ margin-bottom:8px; color:var(--ink-soft); }
+.note p:last-child{ margin-bottom:0; }
+
+/* ---- Tables ---- */
+.table-wrap{
+  overflow-x:auto;
+  margin:20px 0 28px;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+table{
+  border-collapse:collapse;
+  width:100%;
+  font-size:14px;
+}
+th, td{
+  padding:11px 14px;
+  text-align:left;
+  border-bottom:1px solid var(--line-soft);
+  vertical-align:top;
+}
+thead th{
+  background:var(--panel);
+  font-weight:600;
+  font-size:13px;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--line);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background:rgba(255,255,255,0.025); }
+td.cell-ok{ color:var(--read); font-weight:500; }
+td.cell-bad{ color:var(--write); font-weight:500; }
+table code{ font-size:.82em; }
+
+/* ---- Diagrams ---- */
+figure.diagram{
+  margin:26px 0 30px;
+  padding:22px 20px 18px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+}
+figure.diagram svg{ display:block; width:100%; height:auto; }
+figcaption{
+  font-size:12.5px;
+  color:var(--ink-faint);
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line-soft);
+}
+figcaption .swatch{
+  display:inline-block;
+  width:9px; height:9px;
+  border-radius:2px;
+  margin-right:5px;
+  position:relative;
+  top:1px;
+}
+
+/* svg helper classes (reference CSS vars) */
+.svg-write-fill{ fill:var(--write-soft); }
+.svg-write-line{ stroke:var(--write); }
+.svg-write-text{ fill:var(--write); }
+.svg-read-fill{ fill:var(--read-soft); }
+.svg-read-line{ stroke:var(--read); }
+.svg-read-text{ fill:var(--read); }
+.svg-ink-line{ stroke:var(--line); }
+.svg-ink-text{ fill:var(--ink); }
+.svg-soft-text{ fill:var(--ink-soft); }
+.svg-faint-text{ fill:var(--ink-faint); }
+.svg-panel{ fill:var(--panel); }
+.svg-mono{ font-family:var(--mono); }
+.svg-sans{ font-family:var(--sans); }
+
+hr.rule{
+  border:none;
+  border-top:1px solid var(--line);
+  margin:56px 0;
+}
+
+footer.doc-footer{
+  margin-top:70px;
+  padding-top:24px;
+  border-top:1px solid var(--line);
+  font-size:13.5px;
+  color:var(--ink-faint);
+}
+footer.doc-footer p{ margin:0 0 6px; }
+
+/* ---- Mobile toc toggle ---- */
+.mobile-toc-toggle{ display:none; }
+
+@media (max-width:900px){
+  .layout{ grid-template-columns:1fr; }
+  .sidebar{
+    position:static;
+    height:auto;
+    border-right:none;
+    border-bottom:1px solid var(--line);
+    padding:20px 24px;
+  }
+  .sidebar-inner{ display:none; }
+  .sidebar-inner.open{ display:block; padding-top:18px; }
+  .mobile-toc-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    background:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 14px;
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  main{ padding:36px 22px 90px; }
+  h1.doc-title{ font-size:30px; }
+  .case{ grid-template-columns:1fr; }
+  .case .problem{ border-right:none; border-bottom:1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{ scroll-behavior:auto; }
+  .toc-link{ transition:none; }
+}
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar" aria-label="Table of contents">
+    <a class="sidebar-back" href="/engineering-notes/database-engineering/">&larr; Database Engineering</a>
+    <p class="sidebar-title">ACID, Transactions &amp; Concurrency</p>
+    <p class="sidebar-sub">Notebook</p>
+
+    <button class="mobile-toc-toggle" id="tocToggle" aria-expanded="false">
+      Contents <span aria-hidden="true">&#9662;</span>
+    </button>
+
+    <div class="sidebar-inner" id="sidebarInner">
+      <div class="toc-module">
+        <p class="toc-module-label">I. Transactions &amp; ACID</p>
+        <ol>
+          <li><a class="toc-link" href="#s1" data-toc>Database Transactions</a></li>
+          <li><a class="toc-link" href="#s2" data-toc>ACID Guarantees Deep Dive</a></li>
+          <li><a class="toc-link" href="#s3" data-toc>Durability &amp; Recovery</a></li>
+        </ol>
+      </div>
+      <div class="toc-module">
+        <p class="toc-module-label">II. Concurrency &amp; Isolation</p>
+        <ol>
+          <li><a class="toc-link" href="#s4" data-toc>Lost Updates (Writes)</a></li>
+          <li><a class="toc-link" href="#s5" data-toc>Isolation Levels (Reads)</a></li>
+          <li><a class="toc-link" href="#s6" data-toc>MVCC Under the Hood</a></li>
+          <li><a class="toc-link" href="#s7" data-toc>Non-Repeatable vs. Phantom Reads</a></li>
+          <li><a class="toc-link" href="#s8" data-toc>Concurrency Matrix</a></li>
+          <li><a class="toc-link" href="#s9" data-toc>Consistency: Data vs. Reads</a></li>
+        </ol>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="doc">
+
+      <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/database-engineering/">Database engineering</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">ACID, transactions &amp; concurrency</span></nav>
+      <header class="doc-header">
+        <p class="kicker">Database Engineering Notes</p>
+        <h1 class="doc-title">ACID, Transactions &amp; Concurrency</h1>
+        <p class="doc-dek">How a database keeps its promises when things crash, and how it keeps those promises without making every transaction wait in line.</p>
+      </header>
+
+      <!-- ================================================= -->
+      <!-- MODULE I -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module I — Transactions &amp; ACID</p>
+
+      <section class="card" id="s1">
+        <h2 class="sec-title">s1. What Is a Database Transaction?</h2>
+
+        <p>A <strong>transaction</strong> is a collection of one or more database operations — <code>SELECT</code>, <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code> — executed as a single, logical unit of work.</p>
+
+        <p>A transaction has exactly two possible outcomes:</p>
+        <ul>
+          <li><strong>Commit</strong> — every change made during the transaction is permanently saved.</li>
+          <li><strong>Rollback (abort)</strong> — if any operation fails, every change made during the transaction is undone, leaving the database exactly as it was before the transaction started.</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 190" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d1title">
+            <title id="d1title">Transaction lifecycle: begin, operations, then commit or rollback</title>
+            <text x="20" y="26" class="svg-sans svg-faint-text" font-size="11" font-weight="600">TRANSACTION LIFECYCLE</text>
+
+            <rect x="20" y="70" width="90" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="65" y="98" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">BEGIN</text>
+
+            <line x1="110" y1="93" x2="150" y2="93" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="150,93 143,89 143,97" class="svg-ink-line" fill="var(--ink-faint)"/>
+
+            <rect x="152" y="60" width="150" height="66" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="227" y="88" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Operations</text>
+            <text x="227" y="106" text-anchor="middle" class="svg-mono svg-soft-text" font-size="10.5">INSERT · UPDATE ·</text>
+            <text x="227" y="118" text-anchor="middle" class="svg-mono svg-soft-text" font-size="10.5">DELETE · SELECT</text>
+
+            <line x1="302" y1="93" x2="345" y2="93" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="345" y1="93" x2="345" y2="35" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="345" y1="93" x2="345" y2="150" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="345" y1="35" x2="380" y2="35" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="345" y1="150" x2="380" y2="150" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="380,35 373,31 373,39" fill="var(--ink-faint)"/>
+            <polygon points="380,150 373,146 373,154" fill="var(--ink-faint)"/>
+
+            <rect x="382" y="12" width="150" height="46" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="457" y="34" text-anchor="middle" class="svg-sans svg-read-text" font-size="13" font-weight="600">COMMIT</text>
+            <text x="457" y="49" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">changes made permanent</text>
+
+            <rect x="382" y="127" width="150" height="46" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="457" y="149" text-anchor="middle" class="svg-sans svg-write-text" font-size="13" font-weight="600">ROLLBACK</text>
+            <text x="457" y="164" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">changes fully undone</text>
+
+            <text x="345" y="70" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">success</text>
+            <text x="345" y="185" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">any operation fails</text>
+          </svg>
+          <figcaption>A transaction always resolves to one of two states — there is no such thing as a half-committed transaction.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">📌 Transaction Demarcation</h3>
+        <p>Databases initiate and manage transactions in two primary modes:</p>
+        <ul>
+          <li><strong>Explicit transactions</strong> — boundaries are manually declared by the engineer using explicit commands (<code>BEGIN TX</code>, <code>COMMIT</code>, <code>ROLLBACK</code>).</li>
+          <li><strong>Implicit transactions (autocommit)</strong> — the database engine automatically wraps each standalone query in its own single-statement transaction.</li>
+        </ul>
+      </section>
+
+      <section class="card" id="s2">
+        <h2 class="sec-title">s2. ACID Guarantees Deep Dive</h2>
+        <p>To guarantee data integrity, database management systems enforce four properties, commonly remembered by the acronym <strong>ACID</strong>. Here is exactly what each letter means, and how the engine implements it.</p>
+
+        <h3 class="sub-title">🛑 A — Atomicity ("All or Nothing")</h3>
+        <p>Atomicity guarantees a transaction is treated as one indivisible unit. Either the entire transaction succeeds, or the entire transaction fails — there is no "half-committed" state.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Transferring $100 from Account A to Account B: the database debits Account A, then the server crashes before it can credit Account B. If left as-is, $100 vanishes into thin air.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Write-ahead logging (WAL) / undo logs.</strong> Before modifying data on disk, the database writes the intended change to an append-only log. If a transaction fails mid-way, the engine reads the undo log to reverse the partial changes.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">🔄 C — Consistency ("Follow the Rules")</h3>
+        <p>Consistency ensures a transaction can only move the database from one valid state to another — respecting every schema rule, constraint, and invariant along the way.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>A table enforces the rule that an account balance can never drop below $0. A transaction tries to withdraw $200 from an account holding only $100.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p>The database validates schema constraints — <code>NOT NULL</code>, <code>UNIQUE</code>, <code>FOREIGN KEY</code>, <code>CHECK</code> — during execution. Any violation aborts the transaction.</p>
+          </div>
+        </div>
+        <p><em>Consistency also relies heavily on Atomicity and Isolation to maintain business-level correctness.</em></p>
+
+        <h3 class="sub-title">🔒 I — Isolation ("Don't Step on My Toes")</h3>
+        <p>Thousands of transactions run concurrently in production. Isolation ensures their concurrent execution leaves the database in the same state as if they had run one after another — and prevents transactions from seeing each other's uncommitted, in-progress data.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>T1 updates a row but hasn't committed. T2 reads that row. T1 then hits an error and rolls back. T2 has now read "dirty" data that technically never existed.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Locking</strong> — shared locks for reads, exclusive locks for writes — controls concurrent access. <strong>MVCC</strong> instead gives each transaction a consistent snapshot, so readers never block writers and writers never block readers.</p>
+          </div>
+        </div>
+
+        <h4 class="mini-title">⚠️ Concurrency Read Phenomena</h4>
+        <p>When isolation controls are relaxed for throughput, three read anomalies become possible:</p>
+        <ul>
+          <li><strong>Dirty reads</strong> — reading uncommitted data from another in-flight transaction that might still roll back.</li>
+          <li><strong>Non-repeatable reads</strong> — reading the same row twice and getting different values, because another transaction committed an update in between.</li>
+          <li><strong>Phantom reads</strong> — running the same range query twice and finding new rows, because another transaction committed an insert in between.</li>
+        </ul>
+
+        <h3 class="sub-title">💾 D — Durability ("Survive the Apocalypse")</h3>
+        <p>Durability guarantees that once a transaction commits, its changes are permanently recorded on non-volatile storage. Even if the OS crashes or power is lost a millisecond later, the data is not lost.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Writing directly to data files on disk for every change is slow, so databases hold changes temporarily in volatile RAM (the OS page cache). If power cuts out, anything still in RAM vanishes.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><code>fsync()</code>. On commit, the database forces the OS to flush the transaction's log records from RAM to physical disk. The transaction isn't considered committed until the disk controller confirms the WAL bytes are safely written.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="s3">
+        <h2 class="sec-title">s3. Durability &amp; Recovery Techniques</h2>
+        <p>A database's survival through a power failure, OS crash, or server reboot depends entirely on how it implements <strong>Durability</strong>. Writing every change directly to indexed data pages on disk is expensive — it requires random I/O. Modern engines avoid this with smarter logging and serialization strategies.</p>
+
+        <h3 class="sub-title">💾 Three Core Durability Patterns</h3>
+        <h4 class="mini-title">1. Write-Ahead Logging (WAL)</h4>
+        <p>Before any in-memory page in the buffer pool is modified, the change is appended sequentially to a transaction log on disk. Sequential writes are dramatically faster than random page updates, letting databases optimize write latency without sacrificing durability.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d2title">
+            <title id="d2title">Write path: transaction writes sequentially to the WAL, updates the buffer pool in memory, then is flushed asynchronously to the data file</title>
+            <text x="20" y="24" class="svg-sans svg-faint-text" font-size="11" font-weight="600">THE WRITE PATH</text>
+
+            <rect x="20" y="46" width="118" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="79" y="70" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Transaction</text>
+            <text x="79" y="86" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">UPDATE ...</text>
+
+            <line x1="138" y1="74" x2="176" y2="74" class="svg-write-line" stroke-width="1.6"/>
+            <polygon points="176,74 168,70 168,78" fill="var(--write)"/>
+            <text x="157" y="65" text-anchor="middle" class="svg-write-text" font-size="9.5" font-weight="600">1</text>
+
+            <rect x="178" y="40" width="140" height="68" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="248" y="66" text-anchor="middle" class="svg-sans svg-write-text" font-size="12.5" font-weight="600">WAL</text>
+            <text x="248" y="82" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">append-only</text>
+            <text x="248" y="96" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">sequential disk write</text>
+
+            <line x1="318" y1="74" x2="356" y2="74" class="svg-ink-line" stroke-width="1.6"/>
+            <polygon points="356,74 348,70 348,78" fill="var(--ink-faint)"/>
+            <text x="337" y="65" text-anchor="middle" class="svg-faint-text" font-size="9.5" font-weight="600">2</text>
+
+            <rect x="358" y="40" width="140" height="68" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="428" y="66" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Buffer Pool</text>
+            <text x="428" y="82" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">in-memory pages</text>
+            <text x="428" y="96" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">(RAM, volatile)</text>
+
+            <line x1="498" y1="74" x2="536" y2="74" class="svg-read-line" stroke-width="1.6" stroke-dasharray="4 3"/>
+            <polygon points="536,74 528,70 528,78" fill="var(--read)"/>
+            <text x="517" y="65" text-anchor="middle" class="svg-read-text" font-size="9.5" font-weight="600">3</text>
+
+            <rect x="538" y="40" width="82" height="68" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="579" y="66" text-anchor="middle" class="svg-sans svg-read-text" font-size="12" font-weight="600">Data</text>
+            <text x="579" y="80" text-anchor="middle" class="svg-sans svg-read-text" font-size="12" font-weight="600">File</text>
+            <text x="579" y="96" text-anchor="middle" class="svg-sans svg-soft-text" font-size="9.5">async flush</text>
+
+            <text x="320" y="132" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">1. log first (durable) &#8194;&#8194; 2. apply to memory &#8194;&#8194; 3. flush to disk later, lazily</text>
+          </svg>
+          <figcaption><span class="swatch" style="background:var(--write)"></span>Log first, apply to memory, flush to the data file lazily — this ordering is what makes WAL both fast and durable.</figcaption>
+        </figure>
+
+        <h4 class="mini-title">The Recovery Routine: Redo and Undo</h4>
+        <p>When a database crashes and reboots, it runs a two-step recovery protocol:</p>
+        <ul>
+          <li><strong>Redo phase (roll forward)</strong> — replay the WAL forward, writing every change from <em>committed</em> transactions that hadn't yet been flushed from the buffer pool to disk.</li>
+          <li><strong>Undo phase (roll back)</strong> — use undo logs, or WAL transaction boundaries, to find transactions that were still in-flight at the moment of the crash, and fully reverse their partial writes.</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d3title">
+            <title id="d3title">Crash recovery: scan the WAL, redo committed changes, undo in-flight changes, reach a consistent state</title>
+            <rect x="20" y="34" width="96" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="68" y="58" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">Crash</text>
+            <text x="68" y="74" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9.5">&amp; reboot</text>
+
+            <line x1="116" y1="62" x2="150" y2="62" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="150,62 143,58 143,66" fill="var(--ink-faint)"/>
+
+            <rect x="152" y="34" width="110" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="207" y="58" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">Scan WAL</text>
+            <text x="207" y="74" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9.5">from last checkpoint</text>
+
+            <line x1="262" y1="62" x2="296" y2="62" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="296,62 289,58 289,66" fill="var(--ink-faint)"/>
+
+            <rect x="298" y="18" width="150" height="52" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="373" y="40" text-anchor="middle" class="svg-sans svg-read-text" font-size="12" font-weight="600">Redo</text>
+            <text x="373" y="56" text-anchor="middle" class="svg-sans svg-soft-text" font-size="9.5">committed, unflushed</text>
+
+            <rect x="298" y="78" width="150" height="52" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="373" y="100" text-anchor="middle" class="svg-sans svg-write-text" font-size="12" font-weight="600">Undo</text>
+            <text x="373" y="116" text-anchor="middle" class="svg-sans svg-soft-text" font-size="9.5">in-flight, never committed</text>
+
+            <line x1="448" y1="44" x2="486" y2="62" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="448" y1="104" x2="486" y2="62" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="486,62 478,58 478,66" fill="var(--ink-faint)"/>
+
+            <rect x="488" y="34" width="132" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="554" y="58" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">Consistent</text>
+            <text x="554" y="74" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9.5">state, ready to serve</text>
+          </svg>
+          <figcaption><span class="swatch" style="background:var(--read)"></span>Redo finishes what committed &nbsp;·&nbsp; <span class="swatch" style="background:var(--write)"></span>Undo erases what never committed.</figcaption>
+        </figure>
+
+        <h4 class="mini-title">2. Asynchronous Snapshots</h4>
+        <p>Instead of continuous logging, the database takes a full, point-in-time binary dump of its state and saves it to disk asynchronously at set intervals (e.g. every 5 minutes).</p>
+
+        <div class="note write">
+          <span class="label">THE DURABILITY GAP &amp; COPY-ON-WRITE</span>
+          <p>Snapshotting a huge database is resource-heavy. On Linux, engines like Redis use <code>fork()</code> to spin off an isolated child process that writes the snapshot dump while relying on <strong>copy-on-write</strong> — letting the parent process keep serving traffic while the snapshot is taken.</p>
+          <p><strong>The risk:</strong> if the database crashes 4 minutes after the last snapshot, everything written in those 4 minutes is lost. This is the <em>snapshot durability gap</em>.</p>
+        </div>
+
+        <h4 class="mini-title">3. Append-Only File (AOF)</h4>
+        <p>Maintains a continuous ledger of every write command received. Unlike a binary WAL (which logs physical page changes), AOF is a logical, command-based log — e.g. logging the raw command <code>SET user:1 alice</code>.</p>
+
+        <h4 class="mini-title">Fsync Tuning Trade-offs</h4>
+        <p>How durable an AOF is depends entirely on its flush frequency:</p>
+        <ul>
+          <li><code>fsync everysec</code> <em>(default)</em> — flushes to disk once per second. High throughput; at most 1 second of data at risk on crash.</li>
+          <li><code>fsync always</code> — forces an <code>fsync()</code> for every single write. Maximum durability, at the cost of write throughput.</li>
+          <li><code>fsync no</code> — lets the OS decide when to flush its buffer cache (typically ~every 30 seconds). Highest performance, lowest durability.</li>
+        </ul>
+
+        <h3 class="sub-title">⚡ The Hybrid Solution: Snapshots + AOF</h3>
+        <p>Asynchronous snapshots and AOF each have serious drawbacks in isolation, but their <strong>combination</strong> is a masterclass in practical durability engineering — Redis uses exactly this as its primary persistence strategy.</p>
+
+        <ul>
+          <li><strong>Bridging the snapshot gap</strong> — instead of a multi-minute data-loss window between snapshots, ongoing mutations are continuously appended to the AOF. On crash you lose next to nothing (or at most ~1 second, under <code>everysec</code>).</li>
+          <li><strong>Solving slow AOF recovery</strong> — replaying a year of commands from scratch would take hours. In the hybrid layout, the AOF is periodically truncated to hold only the mutations written <em>since the last snapshot</em>.</li>
+        </ul>
+
+        <h4 class="mini-title">The RDB–AOF Hybrid Preamble</h4>
+        <p>Modern engines (Redis 4.0+) merge both files during a background rewrite:</p>
+        <ol>
+          <li>A background child process is spawned via <code>fork()</code> to rewrite the append-only file.</li>
+          <li>The child writes the current database state to the start of the file as a compact binary <strong>RDB snapshot</strong> (the preamble).</li>
+          <li>Any writes that happen concurrently are appended to the end of the same file as logical <strong>AOF command logs</strong>.</li>
+        </ol>
+        <p><strong>On recovery:</strong> the engine loads the binary RDB preamble instantly — reconstructing most of the database in milliseconds — then replays the small remaining slice of AOF logs to catch up fully.</p>
+
+        <h3 class="sub-title">📝 Physical Logging vs. Logical Logging</h3>
+        <p>A core design choice in database logging is whether to record physical or logical changes — it directly shapes recovery speed and log size.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Logging type</th><th>What's recorded</th><th>Pros</th><th>Cons</th><th>Examples</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Physical (WAL)</strong></td>
+                <td>Byte-level changes within physical pages ("set byte 42 to 0x05 on page 4")</td>
+                <td class="cell-ok">Fast, deterministic recovery. Safe against partial page writes.</td>
+                <td class="cell-bad">Large log sizes. Hard to replicate across engine versions.</td>
+                <td>PostgreSQL WAL, InnoDB redo log</td>
+              </tr>
+              <tr>
+                <td><strong>Logical (AOF)</strong></td>
+                <td>The operations executed ("insert Alice into Users", <code>SET user:1 alice</code>)</td>
+                <td class="cell-ok">Much smaller logs. Easier to replicate across engine versions.</td>
+                <td class="cell-bad">Slow recovery — every write must be re-executed in order.</td>
+                <td>MySQL binary log (statement-based), Redis AOF</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ================================================= -->
+      <!-- MODULE II -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module II — Concurrency &amp; Isolation</p>
+
+      <section class="card" id="s4">
+        <h2 class="sec-title">s4. Lost Updates (Write-Write Anomalies)</h2>
+        <p>Where read phenomena deal with what a transaction is allowed to <em>see</em>, the <strong>lost update</strong> is a write-write anomaly: it happens when two transactions run a <strong>read-modify-write</strong> sequence concurrently against the exact same row.</p>
+
+        <h4 class="mini-title">The Problem, Step by Step</h4>
+        <p>Account A starts with a balance of <strong>$100</strong>.</p>
+        <ul>
+          <li><strong>T1</strong> reads balance ($100). Wants to deposit $50.</li>
+          <li><strong>T2</strong> reads balance ($100). Wants to deposit $20.</li>
+          <li><strong>T1</strong> computes $150 locally, writes <code>balance = 150</code>, commits.</li>
+          <li><strong>T2</strong> computes $120 locally, writes <code>balance = 120</code>, commits.</li>
+        </ul>
+        <div class="note write">
+          <span class="label">RESULT</span>
+          <p>The balance ends at <strong>$120</strong>. T1's $50 deposit is silently wiped out.</p>
+        </div>
+
+        <h3 class="sub-title">The Engineering Solutions</h3>
+
+        <h4 class="mini-title">1. Pessimistic locking (exclusive row locks)</h4>
+        <p>Explicitly lock the row at read time, so no other transaction can touch it until you're done.</p>
+        <pre><code>SELECT balance FROM accounts WHERE id = 1 FOR UPDATE;</code></pre>
+        <p><em>Effect:</em> T2 is blocked from reading the row until T1 commits or aborts.</p>
+
+        <h4 class="mini-title">2. Optimistic concurrency control (OCC) / CAS</h4>
+        <p>Keep a <code>version</code> or <code>updated_at</code> column on the row, and verify it hasn't changed at write time.</p>
+        <pre><code>UPDATE accounts SET balance = 120, version = 2
+WHERE id = 1 AND version = 1;</code></pre>
+        <p><em>Effect:</em> if T1 already bumped the version to <code>2</code>, T2's update matches zero rows — T2 aborts and retries.</p>
+
+        <h4 class="mini-title">3. MVCC snapshot isolation (first-committer-wins)</h4>
+        <p>Under stronger isolation levels (like <code>Repeatable Read</code> in PostgreSQL), the engine actively detects concurrent updates to the same row. On collision, it aborts the second writer outright:</p>
+        <pre><code>ERROR: could not serialize access due to concurrent update</code></pre>
+      </section>
+
+      <section class="card" id="s5">
+        <h2 class="sec-title">s5. Transaction Isolation Levels</h2>
+        <p>SQL-92 defines four classical isolation levels, based on which read anomalies each one prevents. Modern engines implement these levels using very different internal architectures — which is exactly why the same isolation level name can behave differently across databases.</p>
+
+        <h3 class="sub-title">📶 The Four Classic Levels, Plus Snapshot Isolation</h3>
+
+        <h4 class="mini-title">1. Read Uncommitted (dirty reads allowed)</h4>
+        <p>The lowest tier of isolation — a transaction can see raw, uncommitted writes from other in-flight transactions.</p>
+        <div class="note">
+          <span class="label">ENGINE REALITY</span>
+          <p>Most relational databases, including PostgreSQL, don't actually implement Read Uncommitted. Request it, and PostgreSQL silently upgrades your connection to <strong>Read Committed</strong>.</p>
+        </div>
+
+        <h4 class="mini-title">2. Read Committed (strictly committed reads)</h4>
+        <p>Transactions can only read data that has been permanently committed — this prevents dirty reads.</p>
+        <p>Each query inside the transaction gets a fresh read snapshot (or acquires and releases locks statement-by-statement). Because snapshots are per-statement, a transaction running multiple queries can see data change between them — allowing non-repeatable reads.</p>
+
+        <h4 class="mini-title">3. Repeatable Read (no value mutation mid-transaction)</h4>
+        <p>Guarantees any row read by a transaction returns the exact same value for the whole duration of that transaction.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d4title">
+            <title id="d4title">Two ways to implement Repeatable Read: two-phase locking versus MVCC snapshots</title>
+            <text x="20" y="22" class="svg-sans svg-faint-text" font-size="11" font-weight="600">TWO WAYS TO IMPLEMENT "REPEATABLE READ"</text>
+
+            <!-- Lock based -->
+            <rect x="20" y="40" width="290" height="168" rx="8" class="svg-panel svg-write-line" stroke-width="1.3"/>
+            <text x="40" y="64" class="svg-sans svg-write-text" font-size="12.5" font-weight="600">Two-Phase Locking (historical)</text>
+
+            <rect x="40" y="78" width="90" height="34" rx="4" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="85" y="99" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Reader</text>
+            <rect x="150" y="78" width="120" height="34" rx="4" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="210" y="99" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5">Shared lock on row</text>
+            <line x1="130" y1="95" x2="150" y2="95" class="svg-ink-line" stroke-width="1.3"/>
+
+            <rect x="40" y="126" width="90" height="34" rx="4" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="85" y="147" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Writer</text>
+            <rect x="150" y="126" width="120" height="34" rx="4" class="svg-panel svg-ink-line" stroke-width="1.2" stroke-dasharray="3 3"/>
+            <text x="210" y="143" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10">blocked until</text>
+            <text x="210" y="155" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10">reader commits</text>
+            <line x1="130" y1="143" x2="150" y2="143" class="svg-write-line" stroke-width="1.3"/>
+
+            <text x="40" y="192" class="svg-sans svg-soft-text" font-size="10">Blocks writers. Damages write throughput.</text>
+
+            <!-- MVCC -->
+            <rect x="330" y="40" width="290" height="168" rx="8" class="svg-panel svg-read-line" stroke-width="1.3"/>
+            <text x="350" y="64" class="svg-sans svg-read-text" font-size="12.5" font-weight="600">MVCC Snapshot (PostgreSQL, InnoDB)</text>
+
+            <rect x="350" y="78" width="90" height="34" rx="4" class="svg-read-fill svg-read-line" stroke-width="1.2"/>
+            <text x="395" y="99" text-anchor="middle" class="svg-sans svg-read-text" font-size="10.5">Reader</text>
+            <rect x="460" y="78" width="130" height="34" rx="4" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="525" y="99" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10.5">Reads frozen snapshot</text>
+            <line x1="440" y1="95" x2="460" y2="95" class="svg-read-line" stroke-width="1.3" stroke-dasharray="3 3"/>
+
+            <rect x="350" y="126" width="90" height="34" rx="4" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="395" y="147" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Writer</text>
+            <rect x="460" y="126" width="130" height="34" rx="4" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="525" y="143" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10">Writes new version,</text>
+            <text x="525" y="155" text-anchor="middle" class="svg-sans svg-ink-text" font-size="10">commits freely</text>
+            <line x1="440" y1="143" x2="460" y2="143" class="svg-write-line" stroke-width="1.3"/>
+
+            <text x="350" y="192" class="svg-sans svg-soft-text" font-size="10">No blocking either way. Reader and writer proceed concurrently.</text>
+          </svg>
+          <figcaption>Historically Repeatable Read meant holding shared locks (2PL). Modern engines get the same guarantee lock-free, by handing readers a frozen snapshot instead.</figcaption>
+        </figure>
+
+        <h4 class="mini-title">4. Snapshot Isolation (point-in-time database snapshots)</h4>
+        <p>An MVCC-specific pattern: when a transaction starts, the database freezes a logical snapshot representing the exact state of the entire database at that instant, and every query in the transaction runs against that static view.</p>
+        <div class="note read">
+          <span class="label">ENGINE DETAIL</span>
+          <p>PostgreSQL uses Snapshot Isolation to implement its SQL-standard <code>Repeatable Read</code> level — and it's powerful enough to prevent <strong>phantom reads</strong> too.</p>
+        </div>
+
+        <h4 class="mini-title">5. Serializable (sequential-equivalent execution)</h4>
+        <p>The highest isolation standard: transactions behave as if run in a strict, single-threaded queue. Literal sequential execution would destroy hardware parallelism, so engines optimize it instead:</p>
+        <ul>
+          <li><strong>MySQL (InnoDB)</strong> — next-key locking: pessimistic range locks on index blocks, stopping concurrent inserts into a queried range.</li>
+          <li><strong>PostgreSQL</strong> — Serializable Snapshot Isolation (SSI): transactions run lock-free, but the engine builds an in-memory dependency graph of reads and writes. If it detects a cycle that would break serial order, it aborts the offending transaction.</li>
+        </ul>
+
+        <h3 class="sub-title">⚙️ Why Implementations Vary</h3>
+        <p>SQL-92 was written when two-phase locking was the only popular design. The standard defines isolation purely by which anomalies are blocked — so when MVCC engines arrived and bypassed locks entirely, real platform behavior diverged sharply:</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Database</th><th>Read Uncommitted</th><th>Repeatable Read behavior</th><th>Serializable strategy</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>PostgreSQL</strong></td>
+                <td>Silently upgraded to Read Committed</td>
+                <td>Snapshot Isolation — blocks dirty, non-repeatable, <em>and</em> phantom reads</td>
+                <td>SSI — optimistic, lock-free dependency detection</td>
+              </tr>
+              <tr>
+                <td><strong>MySQL (InnoDB)</strong></td>
+                <td>Supported — allows true dirty reads</td>
+                <td>Snapshot Isolation (Read View) — allows phantoms unless locked with <code>FOR UPDATE</code></td>
+                <td>Next-key locking — pessimistic index range locks</td>
+              </tr>
+              <tr>
+                <td><strong>Oracle</strong></td>
+                <td>Not supported</td>
+                <td>Not offered directly — users are pointed to Serializable (actually Snapshot Isolation)</td>
+                <td>Snapshot Isolation, first-committer-wins</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="s6">
+        <h2 class="sec-title">s6. MVCC Under the Hood</h2>
+        <p>Modern relational engines avoid reader-writer blocking entirely using <strong>Multi-Version Concurrency Control</strong>. Under MVCC, updating a row is physically an <strong>insert</strong> of a new version, paired with a logical deletion of the old one — the database keeps multiple physical copies of the same row alive at once, to serve long-running queries a consistent view.</p>
+
+        <h4 class="mini-title">5 Readers vs. 1 Writer</h4>
+        <p>Row A starts with a balance of <strong>$100</strong>. Trace how 5 active readers interact with 1 concurrent writer:</p>
+        <ul>
+          <li><strong>Readers (Tx 1–5)</strong> — active, mid-scan. Because they started <em>before</em> Tx 6 commits, their snapshots freeze Row A at $100.</li>
+          <li><strong>Writer (Tx 6)</strong> — runs <code>UPDATE accounts SET balance = 150 WHERE id = A;</code> and commits.</li>
+          <li><strong>The separation</strong> — rather than overwriting Row A's bytes, the engine keeps both versions on disk. Tx 1–5 keep reading the old $100 copy; Tx 6 and anything newer reads the committed $150 version. No one blocks, and lock latency is zero.</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 660 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d5title">
+            <title id="d5title">MVCC update lifecycle: five readers keep seeing the old row version while a writer commits a new version, until VACUUM reclaims the old one</title>
+
+            <text x="20" y="24" class="svg-sans svg-faint-text" font-size="11" font-weight="600">MVCC UPDATE LIFECYCLE — ROW A</text>
+
+            <!-- Readers -->
+            <rect x="20" y="42" width="230" height="76" rx="8" class="svg-read-fill svg-read-line" stroke-width="1.3"/>
+            <text x="36" y="64" class="svg-sans svg-read-text" font-size="12.5" font-weight="600">Readers · Tx 1–5</text>
+            <text x="36" y="82" class="svg-sans svg-soft-text" font-size="10.5">Snapshot watermark: &lt; Tx 106</text>
+            <text x="36" y="98" class="svg-sans svg-soft-text" font-size="10.5">Read consistent historical state</text>
+
+            <!-- Writer -->
+            <rect x="410" y="42" width="230" height="76" rx="8" class="svg-write-fill svg-write-line" stroke-width="1.3"/>
+            <text x="426" y="64" class="svg-sans svg-write-text" font-size="12.5" font-weight="600">Writer · Tx 6 (id 106)</text>
+            <text x="426" y="82" class="svg-sans svg-soft-text" font-size="10.5">UPDATE balance = 150</text>
+            <text x="426" y="98" class="svg-sans svg-soft-text" font-size="10.5">Commits successfully</text>
+
+            <!-- arrows down to storage -->
+            <line x1="135" y1="118" x2="135" y2="150" class="svg-read-line" stroke-width="1.4"/>
+            <polygon points="135,150 131,142 139,142" fill="var(--read)"/>
+            <line x1="525" y1="118" x2="525" y2="150" class="svg-write-line" stroke-width="1.4"/>
+            <polygon points="525,150 521,142 529,142" fill="var(--write)"/>
+
+            <!-- storage band -->
+            <rect x="20" y="156" width="620" height="10" fill="none"/>
+            <text x="20" y="168" class="svg-sans svg-faint-text" font-size="10.5" font-weight="600">PHYSICAL STORAGE — MULTI-VERSION TUPLES</text>
+
+            <rect x="20" y="178" width="230" height="80" rx="8" class="svg-panel svg-read-line" stroke-width="1.3" stroke-dasharray="5 3"/>
+            <text x="36" y="200" class="svg-sans svg-ink-text" font-size="12" font-weight="600">old_a</text>
+            <text x="36" y="217" class="svg-mono svg-soft-text" font-size="10">Page 5, Slot 2</text>
+            <text x="36" y="232" class="svg-mono svg-soft-text" font-size="10">xmax = 106 (Tx 6 lock)</text>
+            <text x="36" y="248" class="svg-sans svg-faint-text" font-size="9.5">still visible to Tx 1–5</text>
+
+            <rect x="410" y="178" width="230" height="80" rx="8" class="svg-write-fill svg-write-line" stroke-width="1.3"/>
+            <text x="426" y="200" class="svg-sans svg-ink-text" font-size="12" font-weight="600">new_a</text>
+            <text x="426" y="217" class="svg-mono svg-soft-text" font-size="10">Page 5, Slot 3</text>
+            <text x="426" y="232" class="svg-mono svg-soft-text" font-size="10">xmin = 106 (Tx 6 write)</text>
+            <text x="426" y="248" class="svg-sans svg-faint-text" font-size="9.5">visible to Tx 6+ onward</text>
+
+            <!-- vacuum -->
+            <line x1="135" y1="258" x2="135" y2="286" class="svg-ink-line" stroke-width="1.3" stroke-dasharray="4 3"/>
+            <polygon points="135,286 131,278 139,278" fill="var(--ink-faint)"/>
+            <rect x="20" y="292" width="300" height="40" rx="6" class="svg-panel svg-ink-line" stroke-width="1.2"/>
+            <text x="36" y="317" class="svg-sans svg-ink-text" font-size="11" font-weight="600">VACUUM / purge — once Tx 1–5 finish,</text>
+            <text x="342" y="317" class="svg-sans svg-ink-text" font-size="11" font-weight="600">old_a is dead and physically reclaimed.</text>
+          </svg>
+          <figcaption><span class="swatch" style="background:var(--read)"></span>old_a stays alive only as long as a reader might still need it &nbsp;·&nbsp; <span class="swatch" style="background:var(--write)"></span>new_a is what every later transaction sees.</figcaption>
+        </figure>
+
+        <h4 class="mini-title">The MVCC Storage Clutter Penalty (Dead Tuples)</h4>
+        <p>Old row versions aren't deleted in place immediately, which brings real performance costs:</p>
+        <ul>
+          <li><strong>Table bloat</strong> — dead tuples pile up in physical pages, inflating file size and slowing sequential scans.</li>
+          <li><strong>Write amplification</strong> — retaining old versions forces indexes to hold redundant mappings, adding storage overhead.</li>
+        </ul>
+
+        <h4 class="mini-title">The Remediation: Vacuum &amp; Purging</h4>
+        <ul>
+          <li><strong>PostgreSQL VACUUM</strong> — background workers scan tables, find rows whose <code>xmax</code> predates the oldest active transaction, and release that slot back to the table heap.</li>
+          <li><strong>MySQL InnoDB purge thread</strong> — periodically discards old undo log records and clears overflow pointers, keeping indexes compact.</li>
+        </ul>
+
+        <h4 class="mini-title">Heap Multi-Versioning vs. Undo Logging</h4>
+        <div class="case">
+          <div class="solution">
+            <span class="label">POSTGRESQL — IN-HEAP</span>
+            <p>Writes new row copies directly into the main table heap. Active and inactive rows sit side by side. Simple; heavy vacuuming overhead.</p>
+          </div>
+          <div class="problem">
+            <span class="label">INNODB — OUT-OF-HEAP UNDO LOG</span>
+            <p>Overwrites the row in place, but writes the old bytes to a separate undo tablespace. A reader needing an old version follows a rollback pointer and reconstructs it in RAM on the fly. Main tables stay clean; reconstruction costs CPU.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="s7">
+        <h2 class="sec-title">s7. Non-Repeatable vs. Phantom Reads</h2>
+        <p>A subtle but important line separates these two anomalies. Under the SQL-92 standard they occur at different isolation thresholds, for reasons rooted in the physics of locking.</p>
+
+        <h3 class="sub-title">The Fundamental Difference: Row vs. Range</h3>
+        <p>It comes down to whether the concurrent transaction mutates an <strong>existing row</strong>, or introduces a <strong>brand-new matching row</strong>:</p>
+        <ul>
+          <li><strong>Non-repeatable reads</strong> — Tx A reads a row. Tx B updates or deletes that exact same row and commits. Tx A re-reads it and finds the value changed.</li>
+          <li><strong>Phantom reads</strong> — Tx A runs a range query (e.g. <code>WHERE balance &gt; 50</code>) and gets 3 rows. Tx B inserts a new matching row and commits. Tx A re-runs the same query and a 4th, "phantom" row appears.</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 660 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d6title">
+            <title id="d6title">Timelines comparing a non-repeatable read to a phantom read</title>
+
+            <text x="20" y="20" class="svg-sans svg-faint-text" font-size="11" font-weight="600">NON-REPEATABLE READ</text>
+            <text x="340" y="20" class="svg-sans svg-faint-text" font-size="11" font-weight="600">PHANTOM READ</text>
+            <line x1="330" y1="8" x2="330" y2="250" class="svg-ink-line" stroke-width="1"/>
+
+            <!-- left timeline -->
+            <line x1="30" y1="46" x2="30" y2="230" class="svg-ink-line" stroke-width="1.3"/>
+            <circle cx="30" cy="56" r="4" fill="var(--read)"/>
+            <text x="44" y="52" class="svg-sans svg-ink-text" font-size="11" font-weight="600">T1 · Tx A reads row</text>
+            <text x="44" y="67" class="svg-mono svg-soft-text" font-size="9.5">SELECT balance WHERE id=1</text>
+            <text x="44" y="80" class="svg-sans svg-read-text" font-size="10">&#8594; $100</text>
+
+            <circle cx="30" cy="122" r="4" fill="var(--write)"/>
+            <text x="44" y="118" class="svg-sans svg-ink-text" font-size="11" font-weight="600">T2 · Tx B updates &amp; commits</text>
+            <text x="44" y="133" class="svg-mono svg-soft-text" font-size="9.5">UPDATE ... SET balance=150</text>
+
+            <circle cx="30" cy="188" r="4" fill="var(--read)"/>
+            <text x="44" y="184" class="svg-sans svg-ink-text" font-size="11" font-weight="600">T3 · Tx A reads again</text>
+            <text x="44" y="199" class="svg-sans svg-write-text" font-size="10">&#8594; $150 — value mutated</text>
+
+            <!-- right timeline -->
+            <line x1="350" y1="46" x2="350" y2="230" class="svg-ink-line" stroke-width="1.3"/>
+            <circle cx="350" cy="56" r="4" fill="var(--read)"/>
+            <text x="364" y="52" class="svg-sans svg-ink-text" font-size="11" font-weight="600">T1 · Tx A reads range</text>
+            <text x="364" y="67" class="svg-mono svg-soft-text" font-size="9.5">WHERE balance &gt; 50</text>
+            <text x="364" y="80" class="svg-sans svg-read-text" font-size="10">&#8594; Users 1, 2</text>
+
+            <circle cx="350" cy="122" r="4" fill="var(--write)"/>
+            <text x="364" y="118" class="svg-sans svg-ink-text" font-size="11" font-weight="600">T2 · Tx B inserts &amp; commits</text>
+            <text x="364" y="133" class="svg-mono svg-soft-text" font-size="9.5">INSERT (id=3, balance=120)</text>
+
+            <circle cx="350" cy="188" r="4" fill="var(--read)"/>
+            <text x="364" y="184" class="svg-sans svg-ink-text" font-size="11" font-weight="600">T3 · Tx A re-runs range</text>
+            <text x="364" y="199" class="svg-sans svg-write-text" font-size="10">&#8594; Users 1, 2, + 3 (phantom)</text>
+          </svg>
+          <figcaption>Same shape, different target: a non-repeatable read mutates a row already in view; a phantom read adds a row that wasn't there to lock.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">🔒 Why 2PL Fails at Phantoms</h3>
+        <p>Under traditional two-phase locking, isolation is enforced with physical row locks — which exposes a structural blind spot with inserts.</p>
+
+        <div class="note write">
+          <span class="label">THE LOCK BLIND SPOT</span>
+          <p>Tx A runs <code>SELECT * FROM users WHERE age &gt; 30</code>. The engine places a shared lock on every matching row — preventing concurrent <code>UPDATE</code> or <code>DELETE</code> on those rows, which stops non-repeatable reads. But Tx B can still run <code>INSERT INTO users (name, age) VALUES ('Eve', 35)</code>, because <strong>there was no row for 'Eve' to lock in the first place.</strong> It bypasses the locks entirely and appears as a phantom.</p>
+        </div>
+
+        <h4 class="mini-title">The Fix: Next-Key Locking vs. MVCC Snapshots</h4>
+        <ul>
+          <li><strong>Next-key locking (pessimistic — InnoDB)</strong> — locks the <em>gaps</em> between index keys, not just the rows. A range scan for <code>age &gt; 30</code> blocks any insert into those index slots.</li>
+          <li><strong>MVCC snapshot (optimistic — PostgreSQL)</strong> — Tx A runs against a frozen snapshot. Since that snapshot doesn't change when Tx B commits an insert, the new row is naturally filtered out of Tx A's results. Under PostgreSQL, <code>Repeatable Read</code> blocks phantoms with zero row locks.</li>
+        </ul>
+      </section>
+
+      <section class="card" id="s8">
+        <h2 class="sec-title">s8. Concurrency &amp; Isolation Matrix</h2>
+        <p>A reference table mapping each isolation level against the anomalies it can still let through.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Isolation level</th><th>Dirty reads</th><th>Lost updates</th><th>Non-repeatable reads</th><th>Phantom reads</th><th>Write skew*</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Read Uncommitted</strong></td>
+                <td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td>
+              </tr>
+              <tr>
+                <td><strong>Read Committed</strong></td>
+                <td class="cell-ok">Prevented</td><td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td>
+              </tr>
+              <tr>
+                <td><strong>Repeatable Read</strong><br><span style="color:var(--ink-faint); font-size:12px;">SQL-92, lock-based</span></td>
+                <td class="cell-ok">Prevented</td><td class="cell-ok">Prevented</td><td class="cell-ok">Prevented</td><td class="cell-bad">Can occur</td><td class="cell-bad">Can occur</td>
+              </tr>
+              <tr>
+                <td><strong>Snapshot Isolation</strong><br><span style="color:var(--ink-faint); font-size:12px;">Postgres' Repeatable Read</span></td>
+                <td class="cell-ok">Prevented</td><td class="cell-ok">Prevented¹</td><td class="cell-ok">Prevented</td><td class="cell-ok">Prevented</td><td class="cell-bad">Can occur²</td>
+              </tr>
+              <tr>
+                <td><strong>Serializable</strong></td>
+                <td class="cell-ok">Prevented</td><td class="cell-ok">Prevented</td><td class="cell-ok">Prevented</td><td class="cell-ok">Prevented</td><td class="cell-ok">Prevented</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="font-size:14px; color:var(--ink-soft);">
+        <strong>* Write skew</strong> — two concurrent transactions read overlapping data, each makes a locally valid change, but together they violate a global invariant (e.g. two on-call doctors both check out, leaving zero on call).
+        </p>
+        <p style="font-size:14px; color:var(--ink-soft);">
+        <strong>1.</strong> Snapshot Isolation prevents lost updates via first-committer-wins: the engine aborts whichever concurrent writer commits second.<br>
+        <strong>2.</strong> Snapshot Isolation blocks same-row collisions, but can't see cross-row dependency conflicts — its main weakness. Only Serializable closes write skew completely.
+        </p>
+      </section>
+
+      <section class="card" id="s9">
+        <h2 class="sec-title">s9. Consistency: Data (ACID) vs. Reads (CAP)</h2>
+        <p>The word <strong>"consistency"</strong> is one of the most overloaded terms in database engineering — it describes two entirely different concepts depending on architectural scope.</p>
+
+        <div class="case">
+          <div class="solution">
+            <span class="label">ACID "C" — CONSISTENCY IN DATA</span>
+            <p>Application and schema rules, enforced on a single local instance.</p>
+          </div>
+          <div class="problem">
+            <span class="label">CAP "C" — CONSISTENCY IN READS</span>
+            <p>The speed and uniformity of synchronizing data state across distributed, geographically-spread nodes.</p>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Metric</th><th>Consistency in data (ACID)</th><th>Consistency in reads (CAP)</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Scope</strong></td>
+                <td>A single database instance</td>
+                <td>Distributed clusters — multiple nodes, globally</td>
+              </tr>
+              <tr>
+                <td><strong>Objective</strong></td>
+                <td>Protect data integrity and schema constraints</td>
+                <td>Ensure every reader sees the same value at the same instant</td>
+              </tr>
+              <tr>
+                <td><strong>Enforcer</strong></td>
+                <td>Schema engine — validators, constraints, triggers</td>
+                <td>Replication/consensus — Raft, Paxos, quorums</td>
+              </tr>
+              <tr>
+                <td><strong>Typical threat</strong></td>
+                <td>Application writes that would break an invariant</td>
+                <td>Network partitions, replication lag</td>
+              </tr>
+              <tr>
+                <td><strong>Guarantees</strong></td>
+                <td><code>NOT NULL</code>, <code>UNIQUE</code>, foreign keys, <code>CHECK</code></td>
+                <td>Linearizability, read-your-own-writes, eventual consistency</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">🔒 Consistency in Data — Local Constraints</h3>
+        <p>A data-validity property: moving an instance from one valid, constraint-compliant state to another. If a transaction tries to break a constraint, the engine rejects it and rolls back — the data stays clean because the schema's rules were never allowed to break.</p>
+        <div class="note read">
+          <span class="label">EXAMPLE</span>
+          <p>Given <code>CHECK (active_users &lt;= maximum_capacity)</code>, a single-node PostgreSQL instance that tries to push the count past capacity gets its transaction aborted with a constraint exception.</p>
+        </div>
+
+        <h3 class="sub-title">🌐 Consistency in Reads — Global State</h3>
+        <p>A distributed-state uniformity property, often called <em>linearizability</em>. A production database is rarely one server — primaries and replicas span regions to cut latency and provide failover. A write to a US-East primary takes time to reach a EU-Central replica; the speed of light limits how fast, so a client reading from EU-Central a moment later can see stale data. This is <strong>replication lag</strong>.</p>
+
+        <div class="note write">
+          <span class="label">A DISTRIBUTED READ COLLISION</span>
+          <p>Primary in New York, async replica in London.</p>
+          <p>1. A user in New York changes their username to "Alice" — the write is accepted by the primary.<br>
+          2. Before New York replicates to London, a London user queries the London replica for the same username.<br>
+          3. The London replica returns the old name: "Bob".</p>
+          <p><strong>Result:</strong> a read inconsistency — different clients see different values at the same point in time.</p>
+        </div>
+
+        <h4 class="mini-title">Tuning Read Consistency</h4>
+        <ul>
+          <li><strong>Synchronous replication</strong> — the primary waits for every replica to acknowledge before returning success. Strong consistency, but write latency spikes.</li>
+          <li><strong>Quorum writes (W + R &gt; N)</strong> — in systems like Cassandra, the write count (W) plus read count (R) exceeds the total replica count (N), mathematically guaranteeing a read overlaps the latest write.</li>
+          <li><strong>Eventual consistency</strong> — accept temporary staleness; replicas catch up once lag drops to zero.</li>
+        </ul>
+      </section>
+
+      <hr class="rule">
+
+      <footer class="doc-footer">
+        <p><a href="/engineering-notes/database-engineering/">&larr; Back to Database Engineering notes</a></p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // Mobile TOC toggle
+  var toggle = document.getElementById('tocToggle');
+  var inner = document.getElementById('sidebarInner');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = inner.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  // Scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('[data-toc]'));
+  var sections = links.map(function(l){
+    return document.getElementById(l.getAttribute('href').slice(1));
+  }).filter(Boolean);
+
+  if('IntersectionObserver' in window && sections.length){
+    var map = {};
+    links.forEach(function(l){ map[l.getAttribute('href').slice(1)] = l; });
+
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = map[entry.target.id];
+        if(!link) return;
+        if(entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>
