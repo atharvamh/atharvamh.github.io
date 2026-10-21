@@ -39,7 +39,7 @@ export const profile = {
 export const projects = [
   {
     title: "Motion Mirror",
-    blurb: "A 2018 OpenPose arm controller, rebuilt to run in the browser with a 3D penguin and a real servo arm.",
+    blurb: "A 2018 OpenPose robot arm controller, rebuilt to run in the browser with a 3D penguin and a real servo arm.",
     stack: ["MediaPipe", "Three.js", "Arduino"],
     year: "2026",
     href: "https://atharvamh.github.io/motion-mirror/",
