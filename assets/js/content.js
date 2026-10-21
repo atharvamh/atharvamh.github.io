@@ -10,7 +10,7 @@ export const profile = {
   name: "Atharva Mhetar",
   handle: "atharvamh",
   // hero reads "I'm a/an <role>"; { bare: true } drops the article ("I'm Iron Man")
-  roles: ["curious human", "engineer", "traveller", "builder", "note-taker", "daydreamer", { text: "Iron Man", bare: true }, { text: "Batman", bare: true }],
+  roles: ["curious human", "engineer", "traveller", "builder", "daydreamer", { text: "Iron Man", bare: true }, { text: "Batman", bare: true }],
   tagline: "Engineer. Builder. Professional rabbit-hole explorer.",
   email: "atharvamhetar37@gmail.com",
   about: [
