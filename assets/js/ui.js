@@ -184,7 +184,7 @@ export async function mountScene({ ambient = false, hero = null, opacity = 0.55 
     const h = hero ? hero.offsetHeight : innerHeight;
     const p = Math.min(Math.max(scrollY / (h * 0.9), 0), 1);
     api.setProgress(ambient ? 1 : p);
-    canvas.style.opacity = String(ambient ? opacity : 1 - p * 0.45);
+    canvas.style.opacity = String(ambient ? opacity : 1 - p * (innerWidth < 760 ? 0.78 : 0.45)); // phones: fade harder so body text stays readable
   }, { passive: true });
   dispatchEvent(new Event("scroll"));
   return api;

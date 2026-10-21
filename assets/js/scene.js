@@ -219,13 +219,21 @@ export function createScene(canvas, { sections = [], ambient = false } = {}) {
 
     // rig follows pointer + scroll
     const p = state.progress;
-    const side = ambient ? 1 : Math.min(p * 1.6, 1);
-    const wide = innerWidth / innerHeight > 1.1;
-    rig.position.x += ((wide ? side * 3.4 : 0) - rig.position.x) * 0.06;
-    rig.position.y += ((wide ? 0 : side * 2.2) - rig.position.y) * 0.06;
+    const aspect = innerWidth / innerHeight;
+    const wide = aspect > 1.1;
+    const portrait = !wide; // phones and tablets held upright: core in the upper-middle, hero copy right below it
+    const restZ = aspect < 0.8 ? 15 : 11;
+    const portraitY = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * restZ * 0.13; // ~44% down the screen
+    // wide screens: core + planets live in the right half so they never sit behind the hero copy
+    const halfW = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * 11 * aspect;
+    const wideX = halfW * 0.3;
+    const wideScale = Math.min(0.95, 0.45 + halfW * 0.05);
+    rig.position.x += ((wide ? wideX : 0) - rig.position.x) * 0.06;
+    rig.position.y += ((wide ? 0 : portraitY) - rig.position.y) * 0.06;
+    rig.scale.setScalar(rig.scale.x + ((wide ? wideScale : 0.88) - rig.scale.x) * 0.06);
     rig.rotation.y += (state.mx * 0.5 + t * 0.05 - rig.rotation.y) * 0.04;
     rig.rotation.x += (state.my * 0.25 - rig.rotation.x) * 0.04;
-    camera.position.z += (((innerWidth / innerHeight < 0.8 ? 15 : 11) + p * 3) - camera.position.z) * 0.05;
+    camera.position.z += ((restZ + p * 3) - camera.position.z) * 0.05;
 
     core.rotation.y = t * 0.12;
     shell.rotation.set(t * 0.07, t * 0.1, 0);
