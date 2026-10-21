@@ -38,11 +38,11 @@ export const profile = {
  */
 export const projects = [
   {
-    title: "Next project, in progress",
-    blurb: "A working, deployed project will land here. Placeholder until then.",
-    stack: ["Go", "Kubernetes"],
+    title: "Motion Mirror",
+    blurb: "A 2018 OpenPose arm controller, rebuilt to run in the browser with a 3D penguin and a real servo arm.",
+    stack: ["MediaPipe", "Three.js", "Arduino"],
     year: "2026",
-    draft: true,
+    href: "https://atharvamh.github.io/motion-mirror/",
   },
 ];
 
