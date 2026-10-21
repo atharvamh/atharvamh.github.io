@@ -1,7 +1,7 @@
 import { mountScene } from "/assets/js/ui.js";
 
 // Ambient 3D background for the standalone trip pages, tinted pink/amber to match Trips.
-mountScene({ ambient: true, opacity: 0.3 }).then((api) => api?.setHue("#ff7eb6", "#ffb86b"));
+mountScene({ ambient: true, opacity: innerWidth < 760 ? 0.12 : 0.3 }).then((api) => api?.setHue("#ff7eb6", "#ffb86b"));
 requestAnimationFrame(() => document.documentElement.classList.add("ready"));
 
 // day nav: highlight the day being read and keep it in view

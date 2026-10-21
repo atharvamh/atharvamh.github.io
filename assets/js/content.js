@@ -76,7 +76,7 @@ export const trips = [
   {
     slug: "kerala-2026",
     title: "Kerala: Hills, Wildlife & Backwaters",
-    blurb: "Munnar, Thekkady, Alleppey and Kochi in five days, with a day-by-day plan and a log of 25 stops.",
+    blurb: "Kochi, Munnar, Thekkady, Alleppey, Kochi.",
     where: "Kerala, India",
     when: "Oct 2026",
     days: 6,

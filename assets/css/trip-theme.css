@@ -122,6 +122,18 @@ header .eyebrow { letter-spacing: 0.18em; }
 .route-caption { color: var(--ink); }
 .foot { color: var(--leaf) !important; }
 
+/*
+ * Phones: the page's own mobile timeline rules sit BEFORE its desktop rules in the same stylesheet, so
+ * the desktop ones win and the time labels end up off-screen. Restate them here (this file loads last).
+ */
+@media (max-width: 520px) {
+  .stop .time { position: static; width: auto; text-align: left; display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: 0.02em; }
+  .stop::after { left: -8px; }
+  .stop p { max-width: 100%; }
+  .stop { margin-bottom: 26px; }
+  .stop h3 { font-size: 17px; }
+}
+
 @media print { #scene, body::before, body::after, .site-home { display: none !important; } }
 @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; } html { scroll-behavior: auto; } }
 
