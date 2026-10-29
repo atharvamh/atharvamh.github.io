@@ -187,10 +187,10 @@ export const resume = {
 
 /** Home-page sections, in order. Drives the nav, the 3D nodes and the palette. */
 export const sections = [
-  { id: "about", label: "About", hue: "#8b7bff" },
-  { id: "build", label: "Build", hue: "#4fe3d1" },
-  { id: "notes", label: "Notes", hue: "#ffb86b" },
-  { id: "trips", label: "Trips", hue: "#ff7eb6" },
-  { id: "lab", label: "Lab", hue: "#7ec8ff" },
-  { id: "resume", label: "Resume", hue: "#b6f26b" },
+  { id: "about", label: "About", hue: "#ffc27a" },
+  { id: "build", label: "Build", hue: "#ff9a56" },
+  { id: "notes", label: "Notes", hue: "#f0dcb4" },
+  { id: "trips", label: "Trips", hue: "#ff7f6b" },
+  { id: "lab", label: "Lab", hue: "#9cc4ff" },
+  { id: "resume", label: "Resume", hue: "#d9b36a" },
 ].filter((s) => s.id !== "build" || projects.length > 0);

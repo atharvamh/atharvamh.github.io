@@ -89,33 +89,8 @@ function rotator() {
 async function wire() {
   const hero = $("#top");
   const api = await mountScene({ hero });
-  const layer = $("#nodes");
-
-  layer.innerHTML = sections.map((s) =>
-    `<a class="node" href="#${s.id}" data-id="${s.id}" style="--c:${s.hue}"><i></i><span>${esc(s.label)}</span></a>`).join("");
-  const labels = Object.fromEntries($$(".node", layer).map((n) => [n.dataset.id, n]));
-
-  if (!api) { layer.classList.add("static"); return; }
-
-  api.onProject((pts) => {
-    const fade = Math.max(0, 1 - scrollY / (hero.offsetHeight * 0.55));
-    layer.style.opacity = fade;
-    layer.style.visibility = fade < 0.02 ? "hidden" : "visible";
-    if (fade < 0.02) return;
-    for (const p of pts) {
-      const el = labels[p.id];
-      el.style.transform = `translate3d(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px, 0)`;
-      el.style.zIndex = String(Math.round(1000 - p.depth * 10));
-    }
-  });
-  for (const [id, el] of Object.entries(labels)) {
-    el.addEventListener("pointerenter", () => api.hoverNode(id));
-    el.addEventListener("pointerleave", () => api.hoverNode(null));
-    el.addEventListener("focus", () => api.hoverNode(id));
-    el.addEventListener("blur", () => api.hoverNode(null));
-    el.addEventListener("click", () => api.pulse());
-  }
-  $("#top").addEventListener("pointerdown", () => api.pulse());
+  if (!api) return;
+  $("#top").addEventListener("pointerdown", () => api.pulse()); // click the hero to flare the disk
 
   // palette follows the section you're reading
   const hueOf = Object.fromEntries(sections.map((s) => [s.id, s.hue]));
