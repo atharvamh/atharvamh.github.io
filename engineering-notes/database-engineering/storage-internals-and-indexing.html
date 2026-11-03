@@ -434,6 +434,8 @@ footer.doc-footer p{ margin:0 0 6px; }
           <li><a class="toc-link" href="#s10" data-toc>B-Tree Indexing Internals</a></li>
           <li><a class="toc-link" href="#s11" data-toc>Clustered vs. Heap Tables</a></li>
           <li><a class="toc-link" href="#s12" data-toc>Row vs. Columnar Storage</a></li>
+          <li><a class="toc-link" href="#s13" data-toc>Where Indexes Live</a></li>
+          <li><a class="toc-link" href="#good-to-know" data-toc>Good to Know</a></li>
         </ol>
       </div>
     </div>
@@ -477,7 +479,7 @@ footer.doc-footer p{ margin:0 0 6px; }
         </div>
 
         <h4 class="mini-title">The indirection layer: slotted page architecture</h4>
-        <p>Modern engines protect against this with a <strong>slotted page layout</strong> inside every block:</p>
+        <p>Modern engines protect against this with a <strong>slotted page layout</strong> inside every page:</p>
         <ul>
           <li><strong>Page header</strong> — metadata: page offsets, free-space pointer, transaction boundaries.</li>
           <li><strong>Line pointer array (slot array)</strong> — grows forward from just after the header. Each entry is a lightweight pointer to a row's actual byte offset.</li>
@@ -550,6 +552,32 @@ footer.doc-footer p{ margin:0 0 6px; }
         <div class="note">
           <span class="label">ENGINEERING NOTE</span>
           <p>Because of this indirection, if Row B is updated and shrinks or relocates <em>inside the same page</em>, only its Slot 1 offset needs updating. External index maps that reference <code>(Page, Slot 1)</code> remain completely valid and untouched.</p>
+        </div>
+
+        <h4 class="mini-title">What a page really holds: per-row overhead</h4>
+        <p>Not all 8&nbsp;KB is your data. A Postgres page pays <code>24 B</code> once for the page header, then roughly <code>28 B</code> on <strong>every row</strong>: a <code>~24 B</code> row header plus a <code>4 B</code> line pointer. Because the cost is per row, the share of the page that is actual data depends on row width.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Row data</th><th>Cost per row</th><th>Rows per page</th><th>Your data</th><th>Share of page</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>8 B (two ints)</td><td>36 B</td><td>226</td><td>1,808 B</td><td class="cell-bad">~22%</td></tr>
+              <tr><td>100 B</td><td>132 B</td><td>61</td><td>6,100 B</td><td>~75%</td></tr>
+              <tr><td>200 B</td><td>228 B</td><td>35</td><td>7,000 B</td><td class="cell-ok">~85%</td></tr>
+            </tbody>
+          </table>
+        </div>
+<pre><code>cost_per_row  = 24 + pad8(data) + 4        // row header + data + line pointer
+rows_per_page = floor((8192 - 24) / cost_per_row)
+share         = rows_per_page * data / 8192</code></pre>
+        <p>Small rows are inefficient because the fixed 28&nbsp;B can be several times the data itself. Rows also never span pages, so the gap at the end of a page is wasted: with 200&nbsp;B rows, 35 rows use 7,980&nbsp;B and the remaining 188&nbsp;B sit empty. Wider rows use each page better but fit fewer per page, so the same scan reads more pages.</p>
+        <p>That trend stops around <code>2 KB</code> per row. Beyond it, Postgres compresses large values or moves them to a separate <strong>TOAST</strong> table, leaving only a pointer in the row. It aims to fit at least 4 rows per page.</p>
+
+        <div class="note write">
+          <span class="label">WHAT ELSE EATS PAGE SPACE</span>
+          <p><strong>Fillfactor</strong> deliberately leaves room. It defaults to 100% for tables and 90% for B+Tree indexes. Lowering it on a table lets updated rows stay on the same page (HOT updates), which avoids the row migration problem above.</p>
+          <p><strong>Dead row versions</strong> left by updates and deletes keep occupying space until <code>VACUUM</code> reclaims it.</p>
         </div>
       </section>
 
@@ -627,6 +655,56 @@ footer.doc-footer p{ margin:0 0 6px; }
 
         <p>Since every payload lives in the leaves, internal nodes stay light and fan-out stays huge. A B+Tree with <code>B = 500</code> can index millions of keys in just 3 levels — capping physical page lookups at 3 hops.</p>
 
+        <p>The depth is how many times you can divide the key count by the fan-out before a single page is left:</p>
+<pre><code>levels ≈ ceil( log_B(N) )      // B = fan-out per page, N = number of keys</code></pre>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Rows (N)</th><th>BST: <code>log&#8322; N</code></th><th>B+Tree: <code>log&#8325;&#8320;&#8320; N</code></th></tr>
+            </thead>
+            <tbody>
+              <tr><td>1 million</td><td class="cell-bad">~20 levels</td><td class="cell-ok">2.2 &#8594; 3 levels</td></tr>
+              <tr><td>1 billion</td><td class="cell-bad">~30 levels</td><td class="cell-ok">3.3 &#8594; 4 levels</td></tr>
+              <tr><td>10 billion</td><td class="cell-bad">~34 levels</td><td class="cell-ok">3.7 &#8594; 4 levels</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Raising the base from 2 to 500 is what flattens the tree: each extra level multiplies capacity by 500, so 10,000&times; more data costs about one more level. These are estimates, since real fan-out varies with key size and how full each page is.</p>
+
+        <h3 class="sub-title">Worked Example: Scan vs. Index Lookup</h3>
+        <p>Take a <code>users</code> table with 1 million rows of about 100 bytes each. From the s9 math, that is ~61 rows per page, so roughly <code>16,400</code> pages (~128&nbsp;MB), and one query:</p>
+<pre><code>SELECT * FROM users WHERE id = 42;</code></pre>
+        <p><strong>Without an index</strong>, Postgres has no idea where <code>id = 42</code> lives. It reads all 16,400 pages and checks every row. It can't stop at the first match either, because nothing guarantees <code>id</code> is unique.</p>
+        <p><strong>With a B+Tree on <code>id</code></strong>, each integer entry is ~20&nbsp;B, so one 8&nbsp;KB index page holds a few hundred of them. A million rows fit in 3 levels:</p>
+<pre><code>Root page:      [ ... | 350,000 | 700,000 | ... ]          // 42 &lt; 350,000 → go left
+Internal page:  [ ... | 370 | 740 | ... ]                  // 42 &lt; 370 → go left
+Leaf page:      [ 41 → (812,3) | 42 → (812,4) | ... ]      // found TID (812, 4)
+Heap page 812:  line pointer 4 → the row</code></pre>
+        <p>That is <strong>4 page reads instead of 16,400</strong>. The root and internal pages are almost always already in the buffer pool, so often only one or two of those reads touch the disk.</p>
+
+        <h4 class="mini-title">Scaling to 10 billion rows</h4>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th></th><th>1 million rows</th><th>10 billion rows</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Heap size</strong></td><td>~16,400 pages (~128 MB)</td><td>~164 million pages (~1.28 TB)</td></tr>
+              <tr><td><strong>Full scan</strong></td><td class="cell-bad">reads all pages</td><td class="cell-bad">reads all pages — ~21 min at 1 GB/s</td></tr>
+              <tr><td><strong>Index size</strong></td><td>—</td><td>~200 GB (20 B × 10 billion)</td></tr>
+              <tr><td><strong>Tree depth</strong></td><td>3 levels</td><td>4 levels</td></tr>
+              <tr><td><strong>Index lookup</strong></td><td class="cell-ok">3 index + 1 heap = 4 reads</td><td class="cell-ok">4 index + 1 heap = 5 reads</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Ten thousand times more data adds only <strong>one level</strong>. At 10 billion rows the 4 levels hold roughly 1, ~170, ~68,000, and ~27 million pages. The top three total ~550&nbsp;MB, small enough to stay cached, so a lookup usually costs one leaf read and one heap read from disk: milliseconds, not minutes.</p>
+
+        <div class="note read">
+          <span class="label">A SCAN DOESN'T NEED THE TABLE TO FIT IN RAM</span>
+          <p>The 1.28&nbsp;TB is streamed through the buffer pool in chunks: pages are read, checked and discarded, so <strong>total time is mostly how fast the disk can deliver them</strong>. The buffer pool has a fixed size (<code>shared_buffers</code>), so memory use is the same for a 1&nbsp;GB table and a 1&nbsp;TB one. A scan just takes longer.</p>
+          <p>Postgres also protects the cache: a large sequential scan uses a small 256&nbsp;KB ring buffer, so it doesn't evict the hot pages other queries rely on. Sorts and hashes are bounded by <code>work_mem</code> and spill to temp files instead of exhausting memory.</p>
+        </div>
+
         <h3 class="sub-title">B-Tree vs. B+Tree</h3>
         <div class="case">
           <div class="problem">
@@ -654,7 +732,7 @@ footer.doc-footer p{ margin:0 0 6px; }
               <tr>
                 <td><strong>Physical ordering</strong></td>
                 <td>Unordered — rows land wherever free space exists</td>
-                <td>Strictly sorted by primary key</td>
+                <td>Logically ordered by primary key (leaf pages linked in key order)</td>
               </tr>
               <tr>
                 <td><strong>PK leaf value</strong></td>
@@ -668,8 +746,8 @@ footer.doc-footer p{ margin:0 0 6px; }
               </tr>
               <tr>
                 <td><strong>Row address stability</strong></td>
-                <td>Volatile — a row's coordinate can shift if it moves inside a page</td>
-                <td>Volatile — rows physically relocate across pages during index splits</td>
+                <td>Stable while the row stays put (slot indirection hides moves inside a page). Changes when an <code>UPDATE</code> writes a new version elsewhere, or on <code>VACUUM FULL</code></td>
+                <td>Volatile — rows physically relocate across pages during index splits, but secondary indexes store the PK, so they don't break</td>
               </tr>
             </tbody>
           </table>
@@ -725,6 +803,15 @@ footer.doc-footer p{ margin:0 0 6px; }
           </svg>
           <figcaption><span class="swatch" style="background:var(--read)"></span>Direct physical hop &nbsp;·&nbsp; <span class="swatch" style="background:var(--write)"></span>logical hop via the primary key, then a second traversal.</figcaption>
         </figure>
+
+        <h4 class="mini-title">Putting it together: a Postgres point read</h4>
+        <p>Every piece from the last three sections shows up in one lookup — the B+Tree finds the TID, the TID names a page and slot, and the slot's line pointer gives the exact bytes.</p>
+<pre><code>tid  = index.lookup(id)              // B+tree search → (page_n, slot)
+page = bufferPool.fetch(tid.page)    // from RAM, or read from disk
+lp   = page.linePointers[tid.slot]   // gives offset + length
+row  = page.bytes[lp.offset : lp.offset + lp.len]
+if visible(row, mySnapshot): return row</code></pre>
+        <p>The final <code>visible()</code> check is MVCC: the heap may hold several versions of the same logical row, and the snapshot decides which one this transaction is allowed to see. See <a href="transactions-and-concurrency.html#s6">MVCC Under the Hood</a> for how <code>xmin</code> and <code>xmax</code> make that decision.</p>
 
         <h3 class="sub-title">The Random UUID Clustered-Index Trap</h3>
         <div class="note write">
@@ -813,6 +900,7 @@ footer.doc-footer p{ margin:0 0 6px; }
         <ul>
           <li><strong>Massive I/O waste</strong> — averaging one column across 50,000,000 rows still pulls every column (IDs, descriptions, timestamps) into the buffer pool. Most of those bytes are discarded instantly.</li>
           <li><strong>Buffer pool pollution</strong> — loading heavy rows to scan one column evicts valuable transactional pages from RAM, slowing down unrelated queries too.</li>
+          <li><strong>Pages read is the real cost</strong> — wide rows mean fewer rows per page (see s9), so scanning the same row count touches more pages.</li>
         </ul>
 
         <h3 class="sub-title">OLAP on Columnar: the Cure</h3>
@@ -826,6 +914,18 @@ footer.doc-footer p{ margin:0 0 6px; }
           <span class="label">ROW RECONSTRUCTION &amp; WRITE COST</span>
           <p><code>SELECT * FROM users WHERE id = 42</code> forces the engine to open a separate file per column, read slot 42 in each, and stitch the row back together in RAM — heavy random-seek latency. Inserting or updating one row means touching dozens of separate column files at once.</p>
         </div>
+
+        <h3 class="sub-title">Why Updates Are Painful in Columnar Systems</h3>
+        <p>Analytical platforms such as Databricks (Delta Lake) and Azure Data Explorer are built for heavy append, and updating a single row in them is expensive. The reasons all follow from the columnar layout:</p>
+        <ul>
+          <li><strong>Immutable files</strong> — data is stored as large columnar files, typically hundreds of MB, on object storage like S3 or ADLS. Object stores can't overwrite part of an object, so a file is replaced, never edited.</li>
+          <li><strong>Encoding blocks in-place edits</strong> — a row is split across many column chunks, each compressed with dictionary or run-length encoding. Changing one value means decoding and re-encoding the whole chunk, whose size may change.</li>
+          <li><strong>No slot array, no row address</strong> — there is no line-pointer indirection and no TID, so finding "row 42" means a scan helped by per-block min/max statistics, not a B+Tree lookup.</li>
+          <li><strong>Huge write amplification</strong> — copy-on-write rewrites the whole file that holds the row: roughly 100&nbsp;MB rewritten for a ~100&nbsp;B change.</li>
+          <li><strong>The alternative defers the cost</strong> — merge-on-read writes a delete marker plus a new row version and cleans up later in a compaction job. Writes get cheaper, but reads must reconcile old and new versions, and small files pile up until compaction runs.</li>
+          <li><strong>Coarse concurrency</strong> — commits are typically optimistic at table or file level, so two jobs rewriting the same files conflict and one retries. There are no per-row locks.</li>
+        </ul>
+        <p>So these systems usually treat data as <strong>append-only</strong>: insert the new version and pick the latest per key at query time, batch changes into periodic merges, and partition by time so old data is dropped as whole files.</p>
 
         <h3 class="sub-title">The OLTP Answer: Continuous Append</h3>
         <p>To sustain high-throughput concurrent writes, OLTP engines keep every row's columns bundled together in one page — one atomic append per insert, and a point lookup lands directly on a slotted page where every column is already sitting side by side.</p>
@@ -865,6 +965,79 @@ footer.doc-footer p{ margin:0 0 6px; }
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section class="card" id="s13">
+        <h2 class="sec-title">s13. Where Indexes Live &amp; Index Types</h2>
+        <p>An index is not a special kind of object floating somewhere in memory. It lives on disk next to the table data, in the same kind of fixed-size pages, and is cached in the buffer pool like any other page. What differs between engines is the file layout.</p>
+
+        <h3 class="sub-title">Where the Index Pages Sit</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Database</th><th>Where indexes live</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>PostgreSQL</strong></td><td>Each index is its own file in the data directory, separate from the table's heap file. Same <code>8 KB</code> pages, same buffer pool.</td></tr>
+              <tr><td><strong>SQL Server</strong></td><td>Inside the database's data files (<code>.mdf</code>/<code>.ndf</code>) as B+Trees of <code>8 KB</code> pages. A clustered index <strong>is</strong> the table; nonclustered indexes are separate B+Trees.</td></tr>
+              <tr><td><strong>MySQL InnoDB</strong></td><td>In the table's <code>.ibd</code> file. The table is the clustered primary-key B+Tree, and secondary indexes store the primary key rather than a physical row address (see s11).</td></tr>
+              <tr><td><strong>Cosmos DB</strong></td><td>Stored with the data on each partition. By default it indexes every property of every JSON document, configurable through an indexing policy.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">Are Indexes Only for Transactional Systems?</h3>
+        <p>No. Nearly every database uses indexes, but the index type changes with the workload:</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Workload</th><th>Index type</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Transactional (OLTP)</strong></td><td>B+Tree</td><td>Many small point lookups like "find user 42"</td></tr>
+              <tr><td><strong>Analytical (OLAP)</strong></td><td>Per-block min/max statistics; bitmap indexes</td><td>Queries scan millions of rows, so per-row lookups help less. Min/max stats let the engine skip blocks that can't match (Snowflake, BigQuery, ClickHouse, Parquet, and Postgres <code>BRIN</code>). Bitmaps suit low-cardinality columns.</td></tr>
+              <tr><td><strong>Search</strong></td><td>Inverted index</td><td>Maps word &#8594; documents, as in Elasticsearch</td></tr>
+              <tr><td><strong>Vector search</strong></td><td>HNSW graph</td><td>Nearest-neighbor lookup on embeddings</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="note read">
+          <span class="label">TAKEAWAY</span>
+          <p>Indexes are universal; B+Trees are just the best fit for transactional access patterns, which is why the earlier sections focus on them.</p>
+        </div>
+      </section>
+
+      <section class="card" id="good-to-know">
+        <h2 class="sec-title">Good to Know</h2>
+
+        <h3 class="sub-title">What Are Databases Written In?</h3>
+        <p>The page, buffer pool and index structures in these notes are low-level code, so most open-source engines are written in languages that give direct control over memory layout and I/O.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Language</th><th>Engines</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>C</strong></td><td>PostgreSQL, SQLite, Redis</td></tr>
+              <tr><td><strong>C++</strong></td><td>MySQL / InnoDB, ClickHouse, DuckDB, RocksDB</td></tr>
+              <tr><td><strong>Go</strong></td><td>CockroachDB, TiDB (SQL layer)</td></tr>
+              <tr><td><strong>Rust</strong></td><td>TiKV (TiDB's storage layer)</td></tr>
+              <tr><td><strong>Java</strong></td><td>Cassandra, Elasticsearch (built on Lucene)</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Only open-source engines are listed, since their source can be checked. Closed-source systems like SQL Server don't publish theirs.</p>
+
+        <h3 class="sub-title">What Is Fillfactor?</h3>
+        <p><strong>Fillfactor</strong> is the percentage of each page that Postgres lets inserts fill. The rest is deliberately left empty for later use. It defaults to <code>100</code> for tables (pack pages full) and <code>90</code> for B+Tree indexes (leave room to absorb inserts without splitting), and can be set per table or index:</p>
+<pre><code>ALTER TABLE users SET (fillfactor = 80);</code></pre>
+        <p>It matters for <strong>HOT updates</strong>, which skip index maintenance when no indexed column changed and the new row version fits on the same page:</p>
+        <ul>
+          <li><strong>Fillfactor 100</strong> — a page filled by inserts has no spare room, so the new version lands on another page and every index gets a new entry.</li>
+          <li><strong>Fillfactor 80</strong> — 20% of each page is reserved, so the new version fits beside the old one and the indexes stay untouched.</li>
+        </ul>
+        <p>The cost is space: with 20% reserved, a table takes about 25% more pages, so scans read more of them. Lower it only on tables with frequent updates to non-indexed columns; for append-only tables, 100 is right. It applies only to newly written pages, so existing data picks up a new setting after a rewrite such as <code>VACUUM FULL</code>.</p>
       </section>
 
       <hr class="rule">

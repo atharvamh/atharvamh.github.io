@@ -963,11 +963,30 @@ WHERE id = 1 AND version = 1;</code></pre>
           <figcaption><span class="swatch" style="background:var(--read)"></span>old_a stays alive only as long as a reader might still need it &nbsp;·&nbsp; <span class="swatch" style="background:var(--write)"></span>new_a is what every later transaction sees.</figcaption>
         </figure>
 
+        <h4 class="mini-title">How a Reader Picks a Version</h4>
+        <p>There are no version numbers like v1, v2. In Postgres, every row version is stamped with two transaction IDs: <code>xmin</code>, the transaction that created it, and <code>xmax</code>, the transaction that deleted or replaced it (empty while it is still current). A reader doesn't take the latest version; it takes the one its <strong>snapshot</strong> can see: <code>xmin</code> committed before the snapshot, and <code>xmax</code> not yet. Say a row is updated twice:</p>
+<pre><code>Version A:  xmin=100  xmax=200   // balance = 50
+Version B:  xmin=200  xmax=300   // balance = 80
+Version C:  xmin=300  xmax=—     // balance = 120</code></pre>
+        <ul>
+          <li>A transaction whose snapshot predates 200 committing sees <strong>A</strong>.</li>
+          <li>One that started after 200 committed but before 300 did sees <strong>B</strong>.</li>
+          <li>A new transaction, after 300 commits, sees <strong>C</strong>.</li>
+          <li>While 300 is still uncommitted, everyone except transaction 300 itself still sees <strong>B</strong>.</li>
+        </ul>
+        <p>The versions are chained oldest to newest through the <code>t_ctid</code> field. You can see the stamps yourself with <code>SELECT xmin, xmax, ctid, * FROM users;</code>.</p>
+
+        <div class="note read">
+          <span class="label">THE WAL NEVER SERVES READS</span>
+          <p>Old versions are not rebuilt from the write-ahead log. In Postgres they sit in the heap as full row copies, sometimes on the same page (HOT updates), so the cost is extra space per version, not necessarily extra pages. The WAL exists only for crash recovery and replication.</p>
+        </div>
+
         <h4 class="mini-title">The MVCC Storage Clutter Penalty (Dead Tuples)</h4>
         <p>Old row versions aren't deleted in place immediately, which brings real performance costs:</p>
         <ul>
           <li><strong>Table bloat</strong> — dead tuples pile up in physical pages, inflating file size and slowing sequential scans.</li>
           <li><strong>Write amplification</strong> — retaining old versions forces indexes to hold redundant mappings, adding storage overhead.</li>
+          <li><strong>Long-running transactions</strong> — an old snapshot may still need an old version, so VACUUM can't reclaim it. One transaction left open for hours can bloat tables that it never touches.</li>
         </ul>
 
         <h4 class="mini-title">The Remediation: Vacuum &amp; Purging</h4>
@@ -986,6 +1005,11 @@ WHERE id = 1 AND version = 1;</code></pre>
             <span class="label">INNODB — OUT-OF-HEAP UNDO LOG</span>
             <p>Overwrites the row in place, but writes the old bytes to a separate undo tablespace. A reader needing an old version follows a rollback pointer and reconstructs it in RAM on the fly. Main tables stay clean; reconstruction costs CPU.</p>
           </div>
+        </div>
+
+        <div class="note read">
+          <span class="label">A THIRD APPROACH: SQL SERVER</span>
+          <p>SQL Server also updates the row in place. When snapshot isolation is on, the old versions go to a <strong>version store</strong> in <code>tempdb</code>, which readers consult. It is closer to InnoDB's undo design than to Postgres's in-heap copies.</p>
         </div>
       </section>
 
