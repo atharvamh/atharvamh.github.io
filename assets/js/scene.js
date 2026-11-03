@@ -246,7 +246,7 @@ export function createScene(canvas, { sections = [], ambient = false } = {}) {
     const aspect = innerWidth / innerHeight;
     if (aspect > 1.1) {
       // wide: hole in the right half, hero copy on the left
-      return { cx: (0.26 + 0.02 * p) * aspect, cy: 0.0, scale: Math.min(0.92, 0.5 + aspect * 0.2), fx: 1, fy: 0 };
+      return { cx: (0.23 + 0.02 * p) * aspect, cy: 0.0, scale: Math.min(0.74, 0.4 + aspect * 0.18), fx: 1, fy: 0 };
     }
     // upright: hole above, hero copy below
     return { cx: 0, cy: 0.17 + 0.07 * p, scale: Math.min(0.95, Math.max(0.5, aspect * 1.25)), fx: 0, fy: 1 };
