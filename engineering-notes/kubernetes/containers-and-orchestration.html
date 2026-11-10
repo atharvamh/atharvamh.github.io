@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Containers &amp; the Orchestration Problem — Kubernetes Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ============ TOKENS ============ */
+:root{
+  --paper:#12151C;
+  --panel:#1A1F29;
+  --ink:#E7EAF1;
+  --ink-soft:#AAB2C2;
+  --ink-faint:#727C8D;
+  --line:#2B3140;
+  --line-soft:#232936;
+
+  --write:#DD8452;      /* mutation / danger / write-path */
+  --write-soft:#2B211B;
+  --write-line:#6B4732;
+
+  --read:#4FB3A0;       /* snapshot / read-path / safe */
+  --read-soft:#16241F;
+  --read-line:#31584F;
+
+  --code-bg:#0C0F16;
+  --code-ink:#E7ECF3;
+  --code-line:#242C3D;
+
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --sidebar-w: 272px;
+  --content-w: 700px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--read); text-decoration:none;}
+a:hover{text-decoration:underline;}
+a:focus-visible, button:focus-visible, summary:focus-visible{
+  outline:2px solid var(--read);
+  outline-offset:2px;
+}
+
+/* ============ LAYOUT ============ */
+.layout{
+  display:grid;
+  grid-template-columns: var(--sidebar-w) minmax(0,1fr);
+  max-width:1180px;
+  margin:0 auto;
+}
+
+/* ---- Sidebar ---- */
+.sidebar{
+  padding:40px 28px 40px 32px;
+  position:sticky;
+  top:0;
+  align-self:start;
+  height:100vh;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+}
+.sidebar-back{
+  display:inline-block;
+  font-size:13px;
+  color:var(--ink-faint);
+  margin-bottom:28px;
+}
+.sidebar-back:hover{color:var(--read);}
+.sidebar-title{
+  font-family:var(--serif);
+  font-size:19px;
+  font-weight:600;
+  line-height:1.3;
+  margin:0 0 4px;
+  color:var(--ink);
+}
+.sidebar-sub{
+  font-size:13px;
+  color:var(--ink-faint);
+  margin:0 0 30px;
+}
+.toc-module{
+  margin-bottom:22px;
+}
+.toc-module-label{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:0 0 8px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--line-soft);
+}
+.toc-module ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.toc-module li{
+  margin:0;
+}
+.toc-link{
+  display:block;
+  position:relative;
+  padding:6px 0 6px 14px;
+  font-size:13.5px;
+  color:var(--ink-soft);
+  border-left:2px solid transparent;
+  transition:border-color .15s ease, color .15s ease;
+}
+.toc-link:hover{ color:var(--ink); text-decoration:none;}
+.toc-link.active{
+  color:var(--ink);
+  font-weight:600;
+  border-left-color:var(--read);
+}
+
+/* ---- Main content ---- */
+main{
+  padding:56px 48px 120px;
+  min-width:0;
+}
+.doc{
+  max-width:var(--content-w);
+}
+.doc-header{
+  margin-bottom:56px;
+}
+.doc-header .kicker{
+  font-size:13.5px;
+  color:var(--ink-faint);
+  margin:0 0 10px;
+}
+h1.doc-title{
+  font-family:var(--serif);
+  font-size:40px;
+  font-weight:600;
+  line-height:1.15;
+  letter-spacing:-.01em;
+  margin:0 0 16px;
+  color:var(--ink);
+}
+.doc-dek{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin:0;
+}
+
+.module-flag{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:15px;
+  color:var(--ink-faint);
+  margin:64px 0 6px;
+}
+.module-flag:first-of-type{margin-top:0;}
+
+section.card{
+  margin-bottom:64px;
+  scroll-margin-top:32px;
+}
+h2.sec-title{
+  font-family:var(--serif);
+  font-size:28px;
+  font-weight:600;
+  line-height:1.25;
+  margin:0 0 22px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line);
+  color:var(--ink);
+}
+h3.sub-title{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:600;
+  margin:36px 0 12px;
+  color:var(--ink);
+}
+h4.mini-title{
+  font-size:14.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:22px 0 8px;
+}
+p{margin:0 0 16px;}
+ul,ol{margin:0 0 16px; padding-left:22px;}
+li{margin-bottom:6px;}
+strong{color:var(--ink); font-weight:600;}
+em{color:var(--ink-soft);}
+
+code{
+  font-family:var(--mono);
+  font-size:.86em;
+  background:var(--line-soft);
+  padding:.15em .4em;
+  border-radius:3px;
+  color:var(--ink);
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  padding:16px 18px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  border:1px solid var(--code-line);
+}
+pre code{
+  background:none;
+  padding:0;
+  color:inherit;
+  font-size:13.5px;
+  line-height:1.6;
+}
+
+/* ---- Problem / Solution pairing ---- */
+.case{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+  margin:22px 0 26px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+@media(min-width:640px){
+  .case{ grid-template-columns:1fr 1fr; }
+}
+.case > div{ padding:18px 20px; }
+.case .problem{
+  background:var(--write-soft);
+  border-left:3px solid var(--write);
+}
+.case .solution{
+  background:var(--read-soft);
+  border-left:3px solid var(--read);
+}
+@media(min-width:640px){
+  .case .problem{ border-right:1px solid var(--line); }
+}
+.case .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+.case .problem .label{ color:var(--write); }
+.case .solution .label{ color:var(--read); }
+.case p:last-child{ margin-bottom:0; }
+
+/* ---- Note / callout (margin-note style) ---- */
+.note{
+  margin:20px 0 26px;
+  padding:2px 0 2px 18px;
+  border-left:3px solid var(--line);
+}
+.note.write{ border-left-color:var(--write); }
+.note.read{ border-left-color:var(--read); }
+.note .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink-faint);
+  margin-bottom:6px;
+}
+.note p{ margin-bottom:8px; color:var(--ink-soft); }
+.note p:last-child{ margin-bottom:0; }
+
+/* ---- Tables ---- */
+.table-wrap{
+  overflow-x:auto;
+  margin:20px 0 28px;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+table{
+  border-collapse:collapse;
+  width:100%;
+  font-size:14px;
+}
+th, td{
+  padding:11px 14px;
+  text-align:left;
+  border-bottom:1px solid var(--line-soft);
+  vertical-align:top;
+}
+thead th{
+  background:var(--panel);
+  font-weight:600;
+  font-size:13px;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--line);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background:rgba(255,255,255,0.025); }
+td.cell-ok{ color:var(--read); font-weight:500; }
+td.cell-bad{ color:var(--write); font-weight:500; }
+table code{ font-size:.82em; }
+
+/* ---- Diagrams ---- */
+figure.diagram{
+  margin:26px 0 30px;
+  padding:22px 20px 18px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+}
+figure.diagram svg{ display:block; width:100%; height:auto; }
+figcaption{
+  font-size:12.5px;
+  color:var(--ink-faint);
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line-soft);
+}
+figcaption .swatch{
+  display:inline-block;
+  width:9px; height:9px;
+  border-radius:2px;
+  margin-right:5px;
+  position:relative;
+  top:1px;
+}
+
+/* svg helper classes (reference CSS vars) */
+.svg-write-fill{ fill:var(--write-soft); }
+.svg-write-line{ stroke:var(--write); }
+.svg-write-text{ fill:var(--write); }
+.svg-read-fill{ fill:var(--read-soft); }
+.svg-read-line{ stroke:var(--read); }
+.svg-read-text{ fill:var(--read); }
+.svg-ink-line{ stroke:var(--line); }
+.svg-ink-text{ fill:var(--ink); }
+.svg-soft-text{ fill:var(--ink-soft); }
+.svg-faint-text{ fill:var(--ink-faint); }
+.svg-panel{ fill:var(--panel); }
+.svg-mono{ font-family:var(--mono); }
+.svg-sans{ font-family:var(--sans); }
+
+hr.rule{
+  border:none;
+  border-top:1px solid var(--line);
+  margin:56px 0;
+}
+
+footer.doc-footer{
+  margin-top:70px;
+  padding-top:24px;
+  border-top:1px solid var(--line);
+  font-size:13.5px;
+  color:var(--ink-faint);
+}
+footer.doc-footer p{ margin:0 0 6px; }
+
+/* ---- Mobile toc toggle ---- */
+.mobile-toc-toggle{ display:none; }
+
+@media (max-width:900px){
+  .layout{ grid-template-columns:1fr; }
+  .sidebar{
+    position:static;
+    height:auto;
+    border-right:none;
+    border-bottom:1px solid var(--line);
+    padding:20px 24px;
+  }
+  .sidebar-inner{ display:none; }
+  .sidebar-inner.open{ display:block; padding-top:18px; }
+  .mobile-toc-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    background:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 14px;
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  main{ padding:36px 22px 90px; }
+  h1.doc-title{ font-size:30px; }
+  .case{ grid-template-columns:1fr; }
+  .case .problem{ border-right:none; border-bottom:1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{ scroll-behavior:auto; }
+  .toc-link{ transition:none; }
+}
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar" aria-label="Table of contents">
+    <a class="sidebar-back" href="/engineering-notes/kubernetes/">&larr; Kubernetes</a>
+    <p class="sidebar-title">Containers &amp; the Orchestration Problem</p>
+    <p class="sidebar-sub">Notebook</p>
+
+    <button class="mobile-toc-toggle" id="tocToggle" aria-expanded="false">
+      Contents <span aria-hidden="true">&#9662;</span>
+    </button>
+
+    <div class="sidebar-inner" id="sidebarInner">
+      <div class="toc-module">
+        <p class="toc-module-label">I. Containers from Scratch</p>
+        <ol>
+          <li><a class="toc-link" href="#s1" data-toc>A Container Is Just a Process</a></li>
+          <li><a class="toc-link" href="#s2" data-toc>cgroups: Resource Ceilings</a></li>
+          <li><a class="toc-link" href="#s3" data-toc>Images &amp; OverlayFS</a></li>
+          <li><a class="toc-link" href="#s4" data-toc>The Runtime Stack</a></li>
+        </ol>
+      </div>
+      <div class="toc-module">
+        <p class="toc-module-label">II. Why Orchestrate</p>
+        <ol>
+          <li><a class="toc-link" href="#s5" data-toc>The Many-Machines Problem</a></li>
+          <li><a class="toc-link" href="#s6" data-toc>Imperative vs. Declarative</a></li>
+          <li><a class="toc-link" href="#s7" data-toc>The Reconciliation Loop</a></li>
+          <li><a class="toc-link" href="#s8" data-toc>Level- vs. Edge-Triggered</a></li>
+        </ol>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="doc">
+
+      <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/kubernetes/">Kubernetes</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Containers &amp; the orchestration problem</span></nav>
+      <header class="doc-header">
+        <p class="kicker">Kubernetes Notes</p>
+        <h1 class="doc-title">Containers &amp; the Orchestration Problem</h1>
+        <p class="doc-dek">What a container really is once you strip away the tooling, and why running hundreds of them across many machines forces you into declarative state and reconciliation loops — the idea every other part of Kubernetes is built on.</p>
+      </header>
+
+      <!-- ================================================= -->
+      <!-- MODULE I -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module I — Containers from Scratch</p>
+
+      <section class="card" id="s1">
+        <h2 class="sec-title">s1. A Container Is Just a Process</h2>
+
+        <p>There is no “container” object in the Linux kernel. A container is an ordinary process that the kernel deliberately lies to: it gets its own view of process IDs, network interfaces, mount points and hostname, plus a ceiling on how much CPU and memory it may use. Two kernel features do all the work — <strong>namespaces</strong> (what a process can <em>see</em>) and <strong>cgroups</strong> (what a process can <em>use</em>).</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Two services on one host both want port 8080, both expect <code>/etc/app/config.yaml</code> to be theirs, and either one can <code>kill</code> the other’s processes. As plain processes, they share a single view of everything.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Namespaces.</strong> Each namespace type wraps one global resource so the processes inside get their own isolated copy. A container is simply a process started inside a fresh set of them.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">🧱 The Namespace Types</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Namespace</th><th>Isolates</th><th>What the process sees</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>PID</strong></td><td>Process IDs</td><td>Itself as PID 1; no host processes</td></tr>
+              <tr><td><strong>Network</strong></td><td>Interfaces, IPs, routes, ports, iptables rules</td><td>Its own <code>eth0</code> and its own port 8080</td></tr>
+              <tr><td><strong>Mount</strong></td><td>Mount points</td><td>Its own root filesystem</td></tr>
+              <tr><td><strong>UTS</strong></td><td>Hostname and domain name</td><td>Its own hostname</td></tr>
+              <tr><td><strong>IPC</strong></td><td>System V IPC, POSIX message queues</td><td>Its own shared-memory segments</td></tr>
+              <tr><td><strong>User</strong></td><td>UID/GID mappings</td><td>Root inside, an unprivileged user outside</td></tr>
+              <tr><td><strong>Cgroup</strong></td><td>The view of the cgroup tree</td><td>Its own cgroup as the root</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h4 class="mini-title">Try It</h4>
+<pre><code>sudo unshare --pid --fork --mount-proc --uts bash
+hostname container-demo
+ps aux        # only bash and ps — and bash is PID 1</code></pre>
+        <p>From a second terminal, <code>ps aux</code> on the host still lists that same bash with an ordinary PID. One process, two views of the world. That is the whole trick.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d1title">
+            <title id="d1title">Virtual machines each run their own kernel; containers share the host kernel</title>
+            <text x="160" y="22" text-anchor="middle" class="svg-sans svg-faint-text" font-size="11" font-weight="600">VIRTUAL MACHINES</text>
+            <text x="480" y="22" text-anchor="middle" class="svg-sans svg-faint-text" font-size="11" font-weight="600">CONTAINERS</text>
+            <line x1="320" y1="34" x2="320" y2="218" class="svg-ink-line" stroke-width="1" stroke-dasharray="4 4"/>
+
+            <rect x="20" y="40" width="135" height="38" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="87.5" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">App A</text>
+            <rect x="165" y="40" width="135" height="38" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="232.5" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">App B</text>
+            <rect x="20" y="86" width="135" height="38" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="87.5" y="110" text-anchor="middle" class="svg-sans svg-write-text" font-size="11.5" font-weight="600">Guest OS + kernel</text>
+            <rect x="165" y="86" width="135" height="38" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="232.5" y="110" text-anchor="middle" class="svg-sans svg-write-text" font-size="11.5" font-weight="600">Guest OS + kernel</text>
+            <rect x="20" y="132" width="280" height="38" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="160" y="156" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5">Hypervisor</text>
+            <rect x="20" y="178" width="280" height="38" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="160" y="202" text-anchor="middle" class="svg-sans svg-soft-text" font-size="12.5">Hardware</text>
+
+            <rect x="340" y="40" width="135" height="38" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="407.5" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">App A</text>
+            <rect x="485" y="40" width="135" height="38" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="552.5" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">App B</text>
+            <rect x="340" y="86" width="135" height="38" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="407.5" y="110" text-anchor="middle" class="svg-sans svg-read-text" font-size="11">namespaces + cgroups</text>
+            <rect x="485" y="86" width="135" height="38" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="552.5" y="110" text-anchor="middle" class="svg-sans svg-read-text" font-size="11">namespaces + cgroups</text>
+            <rect x="340" y="132" width="280" height="38" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="480" y="156" text-anchor="middle" class="svg-sans svg-read-text" font-size="12.5" font-weight="600">Shared host kernel</text>
+            <rect x="340" y="178" width="280" height="38" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="480" y="202" text-anchor="middle" class="svg-sans svg-soft-text" font-size="12.5">Hardware</text>
+
+            <text x="160" y="244" text-anchor="middle" class="svg-sans svg-faint-text" font-size="11">a full OS per workload</text>
+            <text x="480" y="244" text-anchor="middle" class="svg-sans svg-faint-text" font-size="11">one kernel, isolated views</text>
+          </svg>
+          <figcaption>A VM virtualises hardware; a container virtualises the operating system’s view. Every container on a host runs on the same kernel.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">⚖️ Containers vs. Virtual Machines</h3>
+        <p>Because there is no guest kernel to boot, a container starts in milliseconds and costs megabytes rather than gigabytes. The price is a weaker isolation boundary: the kernel is shared, so a kernel vulnerability is a vulnerability for every container on the host. Sandboxed runtimes such as gVisor and Kata Containers exist to win back some of that boundary.</p>
+
+        <div class="note read">
+          <span class="label">WHY THIS MATTERS FOR KUBERNETES</span>
+          <p>A <strong>Pod</strong> is a group of containers that deliberately share some namespaces — network, IPC and UTS by default. That is why two containers in the same Pod can reach each other on <code>localhost</code>. We return to this on Page IV.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s2">
+        <h2 class="sec-title">s2. cgroups: Putting a Ceiling on Resources</h2>
+        <p>Namespaces control what a process can see, not how much it can consume. A process in its own PID and network namespaces can still eat every byte of memory on the host. <strong>Control groups (cgroups)</strong> organise processes into a hierarchy and attach resource limits and accounting to each group.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>The noisy neighbour: one container with a memory leak grows until the host runs out of memory, and the kernel starts killing processes — including ones belonging to other, perfectly healthy containers.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p>Put each container in its own cgroup with a memory ceiling. When the container exceeds it, the kernel’s OOM killer acts <strong>inside that cgroup only</strong>, and the neighbours are untouched.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">🎛️ cgroup v2 in Practice</h3>
+        <p>Modern distributions use cgroup v2: a single unified hierarchy mounted at <code>/sys/fs/cgroup</code>, where every group is a directory and every limit is a file you write to.</p>
+<pre><code># create a group and set its limits
+sudo mkdir /sys/fs/cgroup/demo
+echo 100M          | sudo tee /sys/fs/cgroup/demo/memory.max
+echo "50000 100000" | sudo tee /sys/fs/cgroup/demo/cpu.max   # 50 ms per 100 ms = half a CPU
+echo 64            | sudo tee /sys/fs/cgroup/demo/pids.max
+
+# move the current shell (and its future children) into the group
+echo $$ | sudo tee /sys/fs/cgroup/demo/cgroup.procs</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Resource</th><th>Control file</th><th>What happens at the limit</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Memory</strong></td><td><code>memory.max</code></td><td class="cell-bad">OOM killer terminates a process in the group</td></tr>
+              <tr><td><strong>CPU (hard cap)</strong></td><td><code>cpu.max</code></td><td class="cell-ok">Throttled until the next period — never killed</td></tr>
+              <tr><td><strong>CPU (share)</strong></td><td><code>cpu.weight</code></td><td>Relative share, applied only when the CPU is contended</td></tr>
+              <tr><td><strong>Process count</strong></td><td><code>pids.max</code></td><td class="cell-bad"><code>fork()</code> fails — stops fork bombs</td></tr>
+              <tr><td><strong>Block I/O</strong></td><td><code>io.max</code></td><td class="cell-ok">Throttled</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">🔥 Memory Is Incompressible, CPU Is Compressible</h3>
+        <p>The asymmetry in that table is the single most important idea in this section. CPU time can be taken away and handed back later — a throttled process just runs slower. Memory cannot be reclaimed from a process without destroying something, so the only enforcement left is to kill. Kubernetes inherits this exactly: exceed a CPU limit and your latency rises; exceed a memory limit and your container is restarted with the status <code>OOMKilled</code>.</p>
+
+        <div class="note write">
+          <span class="label">CPU LIMITS BITE IN BURSTS</span>
+          <p><code>cpu.max</code> is enforced per period (100 ms by default). A multi-threaded service with a 0.5 CPU limit can spend its entire 50 ms quota early in the period across several threads, then sit fully throttled for the rest of it. Average usage looks low while tail latency spikes. Page IV covers how requests and limits map onto these files.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s3">
+        <h2 class="sec-title">s3. Images &amp; OverlayFS</h2>
+        <p>Namespaces and cgroups give a process an isolated view and a budget, but it still needs a filesystem to run from: its own <code>/usr/bin</code>, its own libraries, its own application code. An <strong>image</strong> provides that filesystem.</p>
+        <p>An image is three things: an ordered list of <strong>layers</strong> (each a tarball of filesystem changes), a <strong>config</strong> (entrypoint, environment, working directory, user), and a <strong>manifest</strong> that ties them together. Every piece is addressed by the SHA-256 digest of its content, so identical layers are stored and downloaded once.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Fifty containers on one host all start from the same 200 MB base image. Copying the full filesystem for each would waste 10 GB of disk and make every start slow.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>A union filesystem.</strong> Stack the shared, read-only image layers and give each container a thin writable layer on top. Fifty containers share one copy of the base.</p>
+          </div>
+        </div>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 236" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d2title">
+            <title id="d2title">OverlayFS stacks read-only image layers under a writable container layer and presents a merged view</title>
+            <text x="20" y="22" class="svg-sans svg-faint-text" font-size="11" font-weight="600">OVERLAYFS UNION MOUNT</text>
+
+            <rect x="20" y="40" width="330" height="36" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="34" y="63" class="svg-sans svg-write-text" font-size="12.5" font-weight="600">Container layer</text>
+            <text x="336" y="63" text-anchor="end" class="svg-mono svg-soft-text" font-size="10.5">upperdir · read/write</text>
+
+            <text x="34" y="96" class="svg-sans svg-faint-text" font-size="10.5">image layers: read-only, shared</text>
+
+            <rect x="20" y="104" width="330" height="34" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="34" y="126" class="svg-sans svg-ink-text" font-size="12">Layer 3: COPY app.py</text>
+            <text x="336" y="126" text-anchor="end" class="svg-mono svg-soft-text" font-size="10.5">lowerdir</text>
+            <rect x="20" y="144" width="330" height="34" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="34" y="166" class="svg-sans svg-ink-text" font-size="12">Layer 2: pip install flask</text>
+            <text x="336" y="166" text-anchor="end" class="svg-mono svg-soft-text" font-size="10.5">lowerdir</text>
+            <rect x="20" y="184" width="330" height="34" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="34" y="206" class="svg-sans svg-ink-text" font-size="12">Layer 1: python:3.12-slim</text>
+            <text x="336" y="206" text-anchor="end" class="svg-mono svg-soft-text" font-size="10.5">lowerdir</text>
+
+            <line x1="352" y1="128" x2="394" y2="128" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="400,128 393,124 393,132" fill="var(--ink-faint)"/>
+
+            <rect x="402" y="56" width="218" height="144" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="511" y="82" text-anchor="middle" class="svg-sans svg-read-text" font-size="12.5" font-weight="600">merged/ — the container’s /</text>
+            <text x="418" y="110" class="svg-mono svg-ink-text" font-size="10.5">/app/app.py</text>
+            <text x="606" y="110" text-anchor="end" class="svg-mono svg-faint-text" font-size="10.5">L3</text>
+            <text x="418" y="132" class="svg-mono svg-ink-text" font-size="10.5">/usr/lib/…/flask</text>
+            <text x="606" y="132" text-anchor="end" class="svg-mono svg-faint-text" font-size="10.5">L2</text>
+            <text x="418" y="154" class="svg-mono svg-ink-text" font-size="10.5">/usr/bin/python3</text>
+            <text x="606" y="154" text-anchor="end" class="svg-mono svg-faint-text" font-size="10.5">L1</text>
+            <text x="418" y="176" class="svg-mono svg-ink-text" font-size="10.5">/tmp/cache.db</text>
+            <text x="606" y="176" text-anchor="end" class="svg-mono svg-write-text" font-size="10.5">upper</text>
+          </svg>
+          <figcaption>Reads fall through to the topmost layer that has the file; every write lands in the container’s own upper layer.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">📚 How OverlayFS Builds the View</h3>
+        <ul>
+          <li><strong>lowerdir</strong> — the image layers. Read-only and shared by every container started from the image.</li>
+          <li><strong>upperdir</strong> — the container’s private writable layer.</li>
+          <li><strong>merged</strong> — the union the container sees as <code>/</code>.</li>
+          <li><strong>Read</strong> — served from the topmost layer that contains the file.</li>
+          <li><strong>Write to an existing file</strong> — <em>copy-up</em>: the whole file is copied from the lower layer into the upper layer, then modified. The image layer is never touched.</li>
+          <li><strong>Delete</strong> — a <em>whiteout</em> entry in the upper layer hides the file below it.</li>
+        </ul>
+<pre><code># lowerdir is listed top-first: l2 sits above l1
+sudo mount -t overlay overlay \
+  -o lowerdir=/layers/l2:/layers/l1,upperdir=/c1/upper,workdir=/c1/work \
+  /c1/merged</code></pre>
+
+        <h3 class="sub-title">🏷️ Tags vs. Digests</h3>
+        <p>A tag such as <code>nginx:1.27</code> is a mutable pointer — the registry can repoint it at a different image tomorrow. A digest such as <code>nginx@sha256:…</code> names exact content and can never change. Two nodes pulling the same tag at different times can end up running different code; pin by digest when you need reproducibility.</p>
+
+        <div class="note write">
+          <span class="label">CONTAINER WRITES ARE EPHEMERAL</span>
+          <p>The upper layer lives and dies with the container. When Kubernetes restarts a crashed container, it starts a fresh one with an empty writable layer, and anything written there is gone. Copy-up also makes the layer a poor place for large, frequently modified files: changing one byte of a 1 GB file copies the whole gigabyte first. Both problems are what volumes solve (Page VI).</p>
+        </div>
+      </section>
+
+      <section class="card" id="s4">
+        <h2 class="sec-title">s4. The Runtime Stack: OCI, runc, containerd &amp; CRI</h2>
+        <p>Something has to turn an image into a running process: pull the layers, set up the overlay mount, create the namespaces and cgroups, then execute the entrypoint. That work is split across several components, each with one job, joined together by open specifications.</p>
+
+        <h3 class="sub-title">📜 The OCI Specifications</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Specification</th><th>What it defines</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Image spec</strong></td><td>The image format: manifest, config and layers</td></tr>
+              <tr><td><strong>Runtime spec</strong></td><td>A <em>bundle</em> — a root filesystem plus a <code>config.json</code> describing namespaces, cgroups, mounts and the process to run — and its lifecycle: create, start, kill, delete</td></tr>
+              <tr><td><strong>Distribution spec</strong></td><td>The HTTP API for pushing images to and pulling them from registries</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Because the specifications are open, an image built with Docker, Buildah or kaniko runs on any compliant runtime.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 344" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d3title">
+            <title id="d3title">Runtime stack from kubelet through CRI, containerd, shim and runc down to the Linux kernel</title>
+
+            <rect x="20" y="16" width="260" height="40" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="150" y="41" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">kubelet</text>
+            <text x="300" y="40" class="svg-sans svg-soft-text" font-size="11.5">node agent: decides what should run here</text>
+            <line x1="150" y1="56" x2="150" y2="80" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="150,86 146,79 154,79" fill="var(--ink-faint)"/>
+            <text x="160" y="75" class="svg-mono svg-faint-text" font-size="10">CRI (gRPC)</text>
+
+            <rect x="20" y="86" width="260" height="40" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="150" y="111" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">containerd / CRI-O</text>
+            <text x="300" y="110" class="svg-sans svg-soft-text" font-size="11.5">pulls images, unpacks layers, builds bundle</text>
+            <line x1="150" y1="126" x2="150" y2="150" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="150,156 146,149 154,149" fill="var(--ink-faint)"/>
+            <text x="160" y="145" class="svg-mono svg-faint-text" font-size="10">spawns</text>
+
+            <rect x="20" y="156" width="260" height="40" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="150" y="181" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">shim</text>
+            <text x="300" y="180" class="svg-sans svg-soft-text" font-size="11.5">parent of the container; holds stdio, exit code</text>
+            <line x1="150" y1="196" x2="150" y2="220" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="150,226 146,219 154,219" fill="var(--ink-faint)"/>
+            <text x="160" y="215" class="svg-mono svg-faint-text" font-size="10">OCI bundle</text>
+
+            <rect x="20" y="226" width="260" height="40" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="150" y="251" text-anchor="middle" class="svg-sans svg-write-text" font-size="13" font-weight="600">runc</text>
+            <text x="300" y="250" class="svg-sans svg-soft-text" font-size="11.5">makes the syscalls, execs entrypoint, exits</text>
+            <line x1="150" y1="266" x2="150" y2="290" class="svg-ink-line" stroke-width="1.4"/>
+            <polygon points="150,296 146,289 154,289" fill="var(--ink-faint)"/>
+            <text x="160" y="285" class="svg-mono svg-faint-text" font-size="10">syscalls</text>
+
+            <rect x="20" y="296" width="260" height="40" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="150" y="321" text-anchor="middle" class="svg-sans svg-read-text" font-size="13" font-weight="600">Linux kernel</text>
+            <text x="300" y="320" class="svg-sans svg-soft-text" font-size="11.5">namespaces, cgroups, overlayfs (s1–s3)</text>
+          </svg>
+          <figcaption>Each layer hands a narrower job to the one below it. Only runc and the kernel touch namespaces and cgroups directly.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">🔧 Who Does What</h3>
+        <ul>
+          <li><strong>kubelet</strong> — the agent on every node. It decides which containers should be running on its node and asks the runtime to make it so.</li>
+          <li><strong>CRI (Container Runtime Interface)</strong> — a gRPC API with two services, <code>RuntimeService</code> and <code>ImageService</code>. It exists so the kubelet never depends on any one runtime.</li>
+          <li><strong>containerd / CRI-O</strong> — the high-level runtime. It pulls images, unpacks layers into snapshots, prepares the OCI bundle and manages container lifecycle.</li>
+          <li><strong>shim</strong> — a small process (for containerd, <code>containerd-shim-runc-v2</code>) that becomes the container’s parent. It holds stdio open and collects the exit code. Because the shim, not containerd, is the parent, containerd can be restarted or upgraded without killing running containers.</li>
+          <li><strong>runc</strong> — the low-level runtime. It reads the bundle, makes the namespace, cgroup and mount syscalls, executes the entrypoint, and exits.</li>
+        </ul>
+
+        <div class="note read">
+          <span class="label">WHAT HAPPENED TO DOCKER?</span>
+          <p>Kubernetes used to talk to Docker through an adapter called dockershim, which was removed in v1.24 (2022). Docker itself runs on containerd and runc, so the change mostly removed a redundant layer. Images built with <code>docker build</code> are OCI images and run unchanged.</p>
+        </div>
+      </section>
+
+      <!-- ================================================= -->
+      <!-- MODULE II -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module II — Why Orchestrate</p>
+
+      <section class="card" id="s5">
+        <h2 class="sec-title">s5. The Many-Machines Problem</h2>
+        <p>Module I gives us a clean way to run an isolated, resource-capped process from a portable image on one machine. Now run 300 of them across 40 machines, for a team that deploys ten times a day. A new class of problems appears, and none of them is about a single container.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Problem</th><th>The manual approach</th><th>What Kubernetes provides</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Placement</strong> — which machine has room?</td><td>A spreadsheet of hosts, <code>ssh</code> and <code>docker run</code></td><td>The scheduler (Pages III, IV)</td></tr>
+              <tr><td><strong>Failure</strong> — a machine dies at 3 a.m.</td><td>A pager, a human, a runbook</td><td>Controllers that recreate Pods elsewhere (Pages III, IV)</td></tr>
+              <tr><td><strong>Discovery</strong> — containers move and IPs change</td><td>Hard-coded IPs, config pushes</td><td>Services and DNS (Page V)</td></tr>
+              <tr><td><strong>Rollout</strong> — update 50 replicas without downtime</td><td>A scripted loop and hope</td><td>Deployments (Page IV)</td></tr>
+              <tr><td><strong>Scaling</strong> — traffic doubles</td><td>Add hosts, edit scripts</td><td>Autoscalers (Page VII)</td></tr>
+              <tr><td><strong>Config &amp; secrets</strong></td><td>Files copied between hosts</td><td>ConfigMaps and Secrets (Page VI)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Scripts encode steps: “ssh to host 7, start X.” They break the moment reality differs from what the script assumed — a host is down, the container already exists, the previous run failed halfway.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p>Replace scripts with a system that <strong>stores the desired state</strong> of the whole cluster and <strong>continuously works</strong> to make reality match it, however reality drifted.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">🏛️ Where the Design Came From</h3>
+        <p>Google open-sourced Kubernetes in 2014, distilled from a decade of running Borg, its internal cluster manager. Two ideas carried over directly: describe <em>what</em> you want rather than <em>how</em>, and let many independent controllers make it so. A third came from Omega, Borg’s research successor: keep all cluster state in one shared store that every component reads from and writes to, using optimistic concurrency rather than locks. In Kubernetes that store is etcd behind the API server — the subject of Page II.</p>
+      </section>
+
+      <section class="card" id="s6">
+        <h2 class="sec-title">s6. Imperative vs. Declarative</h2>
+        <p>There are two ways to tell a system what to do:</p>
+        <ul>
+          <li><strong>Imperative</strong> — a sequence of commands: “start three nginx containers.”</li>
+          <li><strong>Declarative</strong> — a description of the end state: “there should be three nginx containers.” The system works out the steps.</li>
+        </ul>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Run “start 3 containers” twice and you have six. Run it after one crashed and you have five. An imperative command is only correct relative to the state it assumed.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Declare the target, not the steps.</strong> “There should be 3” is idempotent: apply it once or ten times, from any starting point, and you end in the same place.</p>
+          </div>
+        </div>
+
+<pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3              # the desired state — not an instruction
+  selector:
+    matchLabels: {app: web}
+  template:
+    metadata:
+      labels: {app: web}
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th></th><th>Imperative</th><th>Declarative</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>You specify</strong></td><td>Steps</td><td>End state</td></tr>
+              <tr><td><strong>kubectl</strong></td><td><code>run</code>, <code>create</code>, <code>scale</code>, <code>delete</code></td><td><code>apply -f</code></td></tr>
+              <tr><td><strong>Run it twice</strong></td><td class="cell-bad">Does the work twice, or errors</td><td class="cell-ok">No-op</td></tr>
+              <tr><td><strong>Partial failure</strong></td><td class="cell-bad">Unknown state; resume by hand</td><td class="cell-ok">Re-apply; the system finishes the job</td></tr>
+              <tr><td><strong>Source of truth</strong></td><td>Command history</td><td>The manifest, which can live in Git</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="note read">
+          <span class="label">HOW APPLY KNOWS WHAT TO CHANGE</span>
+          <p>To work out a diff, <code>apply</code> needs to know which fields <em>you</em> set and which ones the system filled in. Client-side apply stores your last manifest in the <code>kubectl.kubernetes.io/last-applied-configuration</code> annotation. Server-side apply (<code>kubectl apply --server-side</code>) instead records which field manager owns each field in <code>metadata.managedFields</code>, so two tools editing the same object don’t silently overwrite each other.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s7">
+        <h2 class="sec-title">s7. The Reconciliation Loop</h2>
+        <p>A declaration is just data. Something has to read it and make it true. In Kubernetes that something is a <strong>controller</strong>, and every controller, however complex, runs the same loop:</p>
+<pre><code>for {
+    desired := readSpec()      // what the user declared
+    actual  := observeWorld()  // what actually exists
+    if !equal(desired, actual) {
+        act(desired, actual)   // one step toward desired
+    }
+}</code></pre>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="d4title">
+            <title id="d4title">Reconciliation loop: compare desired and actual state, act, then observe again</title>
+            <defs>
+              <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="20" y="30" width="170" height="56" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="105" y="54" text-anchor="middle" class="svg-sans svg-read-text" font-size="13" font-weight="600">Desired state</text>
+            <text x="105" y="72" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">spec — what you declared</text>
+
+            <rect x="20" y="150" width="170" height="56" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="105" y="174" text-anchor="middle" class="svg-sans svg-write-text" font-size="13" font-weight="600">Actual state</text>
+            <text x="105" y="192" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">status — what exists</text>
+
+            <rect x="250" y="86" width="150" height="64" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="325" y="112" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">Controller</text>
+            <text x="325" y="132" text-anchor="middle" class="svg-mono svg-soft-text" font-size="10.5">diff = desired − actual</text>
+
+            <line x1="190" y1="58" x2="247" y2="104" class="svg-ink-line" stroke-width="1.4" marker-end="url(#arr4)"/>
+            <line x1="190" y1="178" x2="247" y2="134" class="svg-ink-line" stroke-width="1.4" marker-end="url(#arr4)"/>
+
+            <rect x="460" y="86" width="160" height="64" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="540" y="112" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">Act</text>
+            <text x="540" y="132" text-anchor="middle" class="svg-sans svg-soft-text" font-size="11">create · update · delete</text>
+            <line x1="400" y1="118" x2="457" y2="118" class="svg-ink-line" stroke-width="1.4" marker-end="url(#arr4)"/>
+
+            <path d="M540,150 V236 H105 V209" fill="none" class="svg-ink-line" stroke-width="1.4" marker-end="url(#arr4)"/>
+            <text x="322" y="256" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5">the change shows up in the next observation — and the loop runs again</text>
+          </svg>
+          <figcaption>The controller never needs to know <em>why</em> actual and desired differ. It only measures the gap and closes it.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">🌡️ It’s a Feedback Controller</h3>
+        <p>This is closed-loop control — the same structure as a thermostat. The <strong>setpoint</strong> is the spec, the <strong>measured value</strong> is the observed state, and the controller acts on the <strong>error</strong> between them. A thermostat doesn’t need to know why the room got cold — an open window, a cold night. A Kubernetes controller doesn’t need to know why a Pod disappeared — a node failure, an eviction, someone running <code>kubectl delete</code>. It sees two Pods where there should be three, and creates one.</p>
+
+        <h3 class="sub-title">🧩 Properties That Fall Out of the Loop</h3>
+        <ul>
+          <li><strong>Self-healing</strong> — any drift, from any cause, is just more error to correct.</li>
+          <li><strong>Idempotent actions</strong> — the loop may run many times against the same state, so every action must be safe to repeat.</li>
+          <li><strong>Eventual convergence</strong> — reality approaches the spec over successive passes; at any single instant the two may differ.</li>
+          <li><strong>Composition</strong> — rather than one giant controller, many small ones each own a single concern.</li>
+        </ul>
+
+        <h4 class="mini-title">A Chain of Controllers</h4>
+        <p><code>kubectl apply</code> on a Deployment starts no containers itself. It writes one object, and a chain of independent controllers each reconciles one step:</p>
+        <ol>
+          <li>The <strong>Deployment controller</strong> sees the Deployment and creates or updates a ReplicaSet.</li>
+          <li>The <strong>ReplicaSet controller</strong> sees that the ReplicaSet wants 3 Pods and creates 3 Pod objects.</li>
+          <li>The <strong>scheduler</strong> sees Pods with no node and assigns each one to a node.</li>
+          <li>The <strong>kubelet</strong> on that node sees a Pod assigned to it and asks the runtime to start the containers (s4).</li>
+        </ol>
+        <p>None of them calls another. They communicate only by reading and writing objects through the API server.</p>
+
+        <div class="note write">
+          <span class="label">THE CATCH</span>
+          <p>Convergence takes time. Right after you apply, spec and status disagree, and anything reading the cluster sees a world in motion. Kubernetes is eventually consistent by design: status always lags spec, and a tool that needs to know when a change has actually landed must wait for it. <code>kubectl rollout status</code> does exactly that, watching the Deployment until every replica is updated and available.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s8">
+        <h2 class="sec-title">s8. Level-Triggered vs. Edge-Triggered</h2>
+        <p>The terms come from digital electronics. An <strong>edge-triggered</strong> circuit reacts to a <em>transition</em> — the signal going from 0 to 1. A <strong>level-triggered</strong> circuit reacts to the <em>current value</em> — the signal being 1. For a controller, the question is whether it acts on events or on state:</p>
+        <ul>
+          <li><strong>Edge-triggered:</strong> “When a Pod-deleted event arrives, create a Pod.”</li>
+          <li><strong>Level-triggered:</strong> “Whenever I run, count the Pods. If there are fewer than desired, create the difference.”</li>
+        </ul>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>In a distributed system, events get lost: a controller restarts, a network partitions, a watch connection drops. An edge-triggered controller that misses one “Pod deleted” event never replaces that Pod.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Level-triggered logic.</strong> Every reconcile reads the full current state and compares it to the spec. A missed event doesn’t matter — the next pass sees the gap and closes it.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">📅 A Lost-Event Timeline</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Time</th><th>What happens</th><th>Edge-triggered</th><th>Level-triggered</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>T1</strong></td><td>Spec says 3 replicas; 3 Pods running</td><td>Idle</td><td>Idle</td></tr>
+              <tr><td><strong>T2</strong></td><td>Controller crashes</td><td>Down</td><td>Down</td></tr>
+              <tr><td><strong>T3</strong></td><td>A node fails; 1 Pod lost</td><td>Event missed</td><td>Event missed</td></tr>
+              <tr><td><strong>T4</strong></td><td>Controller restarts</td><td class="cell-bad">Waits for an event that never comes; 2 Pods</td><td class="cell-ok">Lists Pods, sees 2, creates 1</td></tr>
+              <tr><td><strong>T5</strong></td><td>Steady state</td><td class="cell-bad">Drifted permanently</td><td class="cell-ok">3 Pods — converged</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">⚙️ What Kubernetes Actually Does</h3>
+        <p>Real controllers use both. A <strong>watch</strong> delivers events, edge-style, so the controller wakes up immediately instead of polling. But the event is only a hint: “something about object X changed — go look.” The reconcile function then reads the current state of X and acts on that state, level-style.</p>
+        <p>On startup, a controller first <strong>lists</strong> every object it cares about — a full read of current state — and only then starts watching. Anything that changed while it was down is caught by that list. Controllers can also set a periodic <strong>resync</strong> that re-queues every object as a safety net.</p>
+
+        <div class="note read">
+          <span class="label">THE RULE OF THUMB</span>
+          <p>Events tell a controller <em>when</em> to look. State tells it <em>what</em> to do. If your reconcile logic ever depends on having seen a particular event, it is edge-triggered, and it will drift.</p>
+        </div>
+
+        <p>That is why the API server — and the way clients list and watch it — sits at the centre of everything. That is Page II.</p>
+      </section>
+
+      <hr class="rule">
+
+      <footer class="doc-footer">
+        <p><a href="/engineering-notes/kubernetes/">&larr; Back to Kubernetes notes</a></p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // Mobile TOC toggle
+  var toggle = document.getElementById('tocToggle');
+  var inner = document.getElementById('sidebarInner');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = inner.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  // Scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('[data-toc]'));
+  var sections = links.map(function(l){
+    return document.getElementById(l.getAttribute('href').slice(1));
+  }).filter(Boolean);
+
+  if('IntersectionObserver' in window && sections.length){
+    var map = {};
+    links.forEach(function(l){ map[l.getAttribute('href').slice(1)] = l; });
+
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = map[entry.target.id];
+        if(!link) return;
+        if(entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>

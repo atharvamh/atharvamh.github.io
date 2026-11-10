@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Networking — Kubernetes Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ============ TOKENS ============ */
+:root{
+  --paper:#12151C;
+  --panel:#1A1F29;
+  --ink:#E7EAF1;
+  --ink-soft:#AAB2C2;
+  --ink-faint:#727C8D;
+  --line:#2B3140;
+  --line-soft:#232936;
+
+  --write:#DD8452;      /* mutation / danger / write-path */
+  --write-soft:#2B211B;
+  --write-line:#6B4732;
+
+  --read:#4FB3A0;       /* snapshot / read-path / safe */
+  --read-soft:#16241F;
+  --read-line:#31584F;
+
+  --code-bg:#0C0F16;
+  --code-ink:#E7ECF3;
+  --code-line:#242C3D;
+
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --sidebar-w: 272px;
+  --content-w: 700px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--read); text-decoration:none;}
+a:hover{text-decoration:underline;}
+a:focus-visible, button:focus-visible, summary:focus-visible{
+  outline:2px solid var(--read);
+  outline-offset:2px;
+}
+
+/* ============ LAYOUT ============ */
+.layout{
+  display:grid;
+  grid-template-columns: var(--sidebar-w) minmax(0,1fr);
+  max-width:1180px;
+  margin:0 auto;
+}
+
+/* ---- Sidebar ---- */
+.sidebar{
+  padding:40px 28px 40px 32px;
+  position:sticky;
+  top:0;
+  align-self:start;
+  height:100vh;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+}
+.sidebar-back{
+  display:inline-block;
+  font-size:13px;
+  color:var(--ink-faint);
+  margin-bottom:28px;
+}
+.sidebar-back:hover{color:var(--read);}
+.sidebar-title{
+  font-family:var(--serif);
+  font-size:19px;
+  font-weight:600;
+  line-height:1.3;
+  margin:0 0 4px;
+  color:var(--ink);
+}
+.sidebar-sub{
+  font-size:13px;
+  color:var(--ink-faint);
+  margin:0 0 30px;
+}
+.toc-module{
+  margin-bottom:22px;
+}
+.toc-module-label{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:0 0 8px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--line-soft);
+}
+.toc-module ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.toc-module li{
+  margin:0;
+}
+.toc-link{
+  display:block;
+  position:relative;
+  padding:6px 0 6px 14px;
+  font-size:13.5px;
+  color:var(--ink-soft);
+  border-left:2px solid transparent;
+  transition:border-color .15s ease, color .15s ease;
+}
+.toc-link:hover{ color:var(--ink); text-decoration:none;}
+.toc-link.active{
+  color:var(--ink);
+  font-weight:600;
+  border-left-color:var(--read);
+}
+
+/* ---- Main content ---- */
+main{
+  padding:56px 48px 120px;
+  min-width:0;
+}
+.doc{
+  max-width:var(--content-w);
+}
+.doc-header{
+  margin-bottom:56px;
+}
+.doc-header .kicker{
+  font-size:13.5px;
+  color:var(--ink-faint);
+  margin:0 0 10px;
+}
+h1.doc-title{
+  font-family:var(--serif);
+  font-size:40px;
+  font-weight:600;
+  line-height:1.15;
+  letter-spacing:-.01em;
+  margin:0 0 16px;
+  color:var(--ink);
+}
+.doc-dek{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin:0;
+}
+
+.module-flag{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:15px;
+  color:var(--ink-faint);
+  margin:64px 0 6px;
+}
+.module-flag:first-of-type{margin-top:0;}
+
+section.card{
+  margin-bottom:64px;
+  scroll-margin-top:32px;
+}
+h2.sec-title{
+  font-family:var(--serif);
+  font-size:28px;
+  font-weight:600;
+  line-height:1.25;
+  margin:0 0 22px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line);
+  color:var(--ink);
+}
+h3.sub-title{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:600;
+  margin:36px 0 12px;
+  color:var(--ink);
+}
+h4.mini-title{
+  font-size:14.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:22px 0 8px;
+}
+p{margin:0 0 16px;}
+ul,ol{margin:0 0 16px; padding-left:22px;}
+li{margin-bottom:6px;}
+strong{color:var(--ink); font-weight:600;}
+em{color:var(--ink-soft);}
+
+code{
+  font-family:var(--mono);
+  font-size:.86em;
+  background:var(--line-soft);
+  padding:.15em .4em;
+  border-radius:3px;
+  color:var(--ink);
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  padding:16px 18px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  border:1px solid var(--code-line);
+}
+pre code{
+  background:none;
+  padding:0;
+  color:inherit;
+  font-size:13.5px;
+  line-height:1.6;
+}
+
+/* ---- Problem / Solution pairing ---- */
+.case{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+  margin:22px 0 26px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+@media(min-width:640px){
+  .case{ grid-template-columns:1fr 1fr; }
+}
+.case > div{ padding:18px 20px; }
+.case .problem{
+  background:var(--write-soft);
+  border-left:3px solid var(--write);
+}
+.case .solution{
+  background:var(--read-soft);
+  border-left:3px solid var(--read);
+}
+@media(min-width:640px){
+  .case .problem{ border-right:1px solid var(--line); }
+}
+.case .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+.case .problem .label{ color:var(--write); }
+.case .solution .label{ color:var(--read); }
+.case p:last-child{ margin-bottom:0; }
+
+/* ---- Note / callout (margin-note style) ---- */
+.note{
+  margin:20px 0 26px;
+  padding:2px 0 2px 18px;
+  border-left:3px solid var(--line);
+}
+.note.write{ border-left-color:var(--write); }
+.note.read{ border-left-color:var(--read); }
+.note .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink-faint);
+  margin-bottom:6px;
+}
+.note p{ margin-bottom:8px; color:var(--ink-soft); }
+.note p:last-child{ margin-bottom:0; }
+
+/* ---- Tables ---- */
+.table-wrap{
+  overflow-x:auto;
+  margin:20px 0 28px;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+table{
+  border-collapse:collapse;
+  width:100%;
+  font-size:14px;
+}
+th, td{
+  padding:11px 14px;
+  text-align:left;
+  border-bottom:1px solid var(--line-soft);
+  vertical-align:top;
+}
+thead th{
+  background:var(--panel);
+  font-weight:600;
+  font-size:13px;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--line);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background:rgba(255,255,255,0.025); }
+td.cell-ok{ color:var(--read); font-weight:500; }
+td.cell-bad{ color:var(--write); font-weight:500; }
+table code{ font-size:.82em; }
+
+/* ---- Diagrams ---- */
+figure.diagram{
+  margin:26px 0 30px;
+  padding:22px 20px 18px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+}
+figure.diagram svg{ display:block; width:100%; height:auto; }
+figcaption{
+  font-size:12.5px;
+  color:var(--ink-faint);
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line-soft);
+}
+figcaption .swatch{
+  display:inline-block;
+  width:9px; height:9px;
+  border-radius:2px;
+  margin-right:5px;
+  position:relative;
+  top:1px;
+}
+
+/* svg helper classes (reference CSS vars) */
+.svg-write-fill{ fill:var(--write-soft); }
+.svg-write-line{ stroke:var(--write); }
+.svg-write-text{ fill:var(--write); }
+.svg-read-fill{ fill:var(--read-soft); }
+.svg-read-line{ stroke:var(--read); }
+.svg-read-text{ fill:var(--read); }
+.svg-ink-line{ stroke:var(--line); }
+.svg-ink-text{ fill:var(--ink); }
+.svg-soft-text{ fill:var(--ink-soft); }
+.svg-faint-text{ fill:var(--ink-faint); }
+.svg-panel{ fill:var(--panel); }
+.svg-mono{ font-family:var(--mono); }
+.svg-sans{ font-family:var(--sans); }
+
+hr.rule{
+  border:none;
+  border-top:1px solid var(--line);
+  margin:56px 0;
+}
+
+footer.doc-footer{
+  margin-top:70px;
+  padding-top:24px;
+  border-top:1px solid var(--line);
+  font-size:13.5px;
+  color:var(--ink-faint);
+}
+footer.doc-footer p{ margin:0 0 6px; }
+
+/* ---- Mobile toc toggle ---- */
+.mobile-toc-toggle{ display:none; }
+
+@media (max-width:900px){
+  .layout{ grid-template-columns:1fr; }
+  .sidebar{
+    position:static;
+    height:auto;
+    border-right:none;
+    border-bottom:1px solid var(--line);
+    padding:20px 24px;
+  }
+  .sidebar-inner{ display:none; }
+  .sidebar-inner.open{ display:block; padding-top:18px; }
+  .mobile-toc-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    background:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 14px;
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  main{ padding:36px 22px 90px; }
+  h1.doc-title{ font-size:30px; }
+  .case{ grid-template-columns:1fr; }
+  .case .problem{ border-right:none; border-bottom:1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{ scroll-behavior:auto; }
+  .toc-link{ transition:none; }
+}
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar" aria-label="Table of contents">
+    <a class="sidebar-back" href="/engineering-notes/kubernetes/">&larr; Kubernetes</a>
+    <p class="sidebar-title">Networking</p>
+    <p class="sidebar-sub">Notebook</p>
+
+    <button class="mobile-toc-toggle" id="tocToggle" aria-expanded="false">
+      Contents <span aria-hidden="true">&#9662;</span>
+    </button>
+
+    <div class="sidebar-inner" id="sidebarInner">
+      <div class="toc-module">
+        <p class="toc-module-label">I. The Pod Network</p>
+        <ol>
+          <li><a class="toc-link" href="#s1" data-toc>The Network Model</a></li>
+          <li><a class="toc-link" href="#s2" data-toc>Inside a Node</a></li>
+          <li><a class="toc-link" href="#s3" data-toc>Across Nodes</a></li>
+          <li><a class="toc-link" href="#s4" data-toc>CNI: The Plugin Contract</a></li>
+        </ol>
+      </div>
+      <div class="toc-module">
+        <p class="toc-module-label">II. The Service Layer</p>
+        <ol>
+          <li><a class="toc-link" href="#s5" data-toc>Services</a></li>
+          <li><a class="toc-link" href="#s6" data-toc>How kube-proxy Works</a></li>
+          <li><a class="toc-link" href="#s7" data-toc>DNS &amp; Discovery</a></li>
+          <li><a class="toc-link" href="#s8" data-toc>Ingress &amp; Gateway API</a></li>
+          <li><a class="toc-link" href="#s9" data-toc>NetworkPolicy</a></li>
+        </ol>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="doc">
+
+      <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/kubernetes/">Kubernetes</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Networking</span></nav>
+      <header class="doc-header">
+        <p class="kicker">Kubernetes Notes</p>
+        <h1 class="doc-title">Networking</h1>
+        <p class="doc-dek">How every Pod gets a real IP address that any other Pod can reach, how packets actually move inside and between nodes, and how Services, DNS, gateways and policies turn a flat network of short-lived Pods into stable, discoverable, controlled endpoints.</p>
+      </header>
+
+      <!-- ================================================= -->
+      <!-- MODULE I -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module I — The Pod Network</p>
+
+      <section class="card" id="s1">
+        <h2 class="sec-title">s1. The Kubernetes Network Model</h2>
+        <p>Before Kubernetes, the usual way to network containers was port mapping: containers got private addresses behind the host, and the outside world reached them through host ports — host port 32768 forwarded to container port 80. Kubernetes rejects that model outright.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>With port mapping, every application must learn which host port it was given, two Pods can’t both use port 80 on one node, and an address a container sees for itself differs from the address others use to reach it. Every service-discovery and configuration system has to work around NAT.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>An IP per Pod on a flat network.</strong> Every Pod gets its own routable address, and every Pod can reach every other Pod at that address, on any node, with no NAT in between. A Pod behaves like a small VM on a LAN.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">📜 The Three Rules</h3>
+        <ol>
+          <li>Every Pod can communicate with every other Pod on any node <strong>without NAT</strong>.</li>
+          <li>Agents on a node (the kubelet, system daemons) can communicate with every Pod on that node.</li>
+          <li>The IP a Pod sees for itself is the same IP others use to reach it.</li>
+        </ol>
+        <p>Kubernetes states these rules but does not implement them. The kubelet and API server know nothing about routes or bridges. Implementing the model is delegated to a <strong>network plugin</strong> through the CNI interface (s4) — which is why clusters can network in very different ways and still behave identically to applications.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Communication</th><th>Solved by</th><th>Section</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Container ↔ container</strong> in one Pod</td><td>Shared network namespace — <code>localhost</code></td><td>Page IV, s1</td></tr>
+              <tr><td><strong>Pod ↔ Pod</strong> on one node</td><td>veth pairs and a bridge or routes</td><td>s2</td></tr>
+              <tr><td><strong>Pod ↔ Pod</strong> across nodes</td><td>Routing or an overlay</td><td>s3</td></tr>
+              <tr><td><strong>Pod → Service</strong></td><td>Virtual IPs and kube-proxy</td><td>s5, s6</td></tr>
+              <tr><td><strong>Outside → Service</strong></td><td>NodePort, LoadBalancer, Ingress, Gateway</td><td>s5, s8</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="s2">
+        <h2 class="sec-title">s2. Inside a Node: veth Pairs &amp; the Bridge</h2>
+        <p>Each Pod has its own network namespace (Page I, s1), with its own interfaces and routing table. A namespace starts out completely disconnected. Two kernel primitives wire it to the host:</p>
+        <ul>
+          <li><strong>veth pair</strong> — a virtual Ethernet cable with two ends. A packet sent into one end comes out of the other. One end goes inside the Pod’s namespace and is renamed <code>eth0</code>; the other stays in the host namespace.</li>
+          <li><strong>Bridge</strong> — a virtual switch in the host namespace. The host ends of every Pod’s veth pair plug into it, so Pods on the same node can reach each other at layer 2.</li>
+        </ul>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 290" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p5d1title">
+            <title id="p5d1title">Two Pods on one node connected by veth pairs to a bridge, which routes to the host interface</title>
+            <rect x="20" y="16" width="600" height="262" rx="8" fill="none" class="svg-ink-line" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text x="36" y="38" class="svg-sans svg-faint-text" font-size="11" font-weight="600">NODE worker-1 — host network namespace</text>
+
+            <rect x="60" y="54" width="200" height="66" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="160" y="76" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Pod A namespace</text>
+            <text x="160" y="96" text-anchor="middle" class="svg-mono svg-soft-text" font-size="10.5">eth0 10.244.1.2</text>
+            <text x="160" y="111" text-anchor="middle" class="svg-mono svg-faint-text" font-size="10">default via 10.244.1.1</text>
+
+            <rect x="380" y="54" width="200" height="66" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="480" y="76" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Pod B namespace</text>
+            <text x="480" y="96" text-anchor="middle" class="svg-mono svg-soft-text" font-size="10.5">eth0 10.244.1.3</text>
+            <text x="480" y="111" text-anchor="middle" class="svg-mono svg-faint-text" font-size="10">default via 10.244.1.1</text>
+
+            <line x1="160" y1="120" x2="160" y2="166" class="svg-write-line" stroke-width="2"/>
+            <line x1="480" y1="120" x2="480" y2="166" class="svg-write-line" stroke-width="2"/>
+            <text x="170" y="148" class="svg-sans svg-write-text" font-size="10.5">veth pair</text>
+            <text x="490" y="148" class="svg-sans svg-write-text" font-size="10.5">veth pair</text>
+
+            <rect x="60" y="166" width="520" height="38" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="320" y="190" text-anchor="middle" class="svg-sans svg-read-text" font-size="12.5" font-weight="600">cni0 bridge — 10.244.1.1/24 (this node’s Pod CIDR)</text>
+
+            <line x1="320" y1="204" x2="320" y2="230" class="svg-ink-line" stroke-width="1.4"/>
+            <text x="330" y="221" class="svg-sans svg-faint-text" font-size="10.5">host routing table, ip_forward</text>
+
+            <rect x="220" y="230" width="200" height="36" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="320" y="253" text-anchor="middle" class="svg-mono svg-ink-text" font-size="11.5">eth0 192.168.1.10</text>
+          </svg>
+          <figcaption>Pod A reaches Pod B through the bridge without leaving the node. Traffic for any other destination is routed by the host out of its own interface.</figcaption>
+        </figure>
+
+<pre><code># build one by hand: a namespace, a veth pair, a bridge
+sudo ip netns add podA
+sudo ip link add veth-a type veth peer name eth0 netns podA
+sudo ip link add cni0 type bridge
+sudo ip link set veth-a master cni0
+sudo ip addr add 10.244.1.1/24 dev cni0
+sudo ip netns exec podA ip addr add 10.244.1.2/24 dev eth0
+sudo ip netns exec podA ip route add default via 10.244.1.1
+# (plus: ip link set ... up on each interface)</code></pre>
+
+        <div class="note read">
+          <span class="label">NOT EVERY PLUGIN USES A BRIDGE</span>
+          <p>The bridge is the classic design. Calico, for example, skips it: each veth host end gets a <code>/32</code> route, and the node routes between Pods at layer 3. Cilium attaches eBPF programs to the veth interfaces and forwards packets before they reach most of the kernel’s networking stack. The model from s1 holds either way.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s3">
+        <h2 class="sec-title">s3. Across Nodes: Routing vs. Overlays</h2>
+        <p>Each node is typically given its own slice of the cluster’s Pod address range — its <strong>Pod CIDR</strong>, recorded in <code>node.spec.podCIDR</code> (for example <code>10.244.1.0/24</code> for node 1, <code>10.244.2.0/24</code> for node 2). Within a node, s2 solved delivery. Between nodes, the physical network has never heard of <code>10.244.2.0/24</code>. There are two ways to fix that.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Pod A on node 1 (10.244.1.2) sends to Pod C on node 2 (10.244.2.5). Node 1 forwards it toward the network — but the switches and routers between the nodes have no route for Pod addresses and drop the packet.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p>Either <strong>teach the network</strong> the Pod routes (routed mode), or <strong>hide Pod packets</strong> inside node-to-node packets the network already understands (overlay mode).</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">🛣️ Routed Mode</h3>
+        <p>Every node’s Pod CIDR is announced as a route pointing at that node’s IP: through BGP (Calico’s classic mode), through cloud route tables (the route controller from Page III, s4), or through static routes when all nodes share a layer-2 segment. Packets travel unmodified — fast and easy to debug — but the underlying network must cooperate.</p>
+
+        <h3 class="sub-title">🧅 Overlay Mode</h3>
+        <p>The sending node wraps the Pod-to-Pod packet inside a new packet addressed node-to-node, usually with VXLAN (an Ethernet frame carried in UDP). The network sees only ordinary traffic between node IPs. The receiving node unwraps it and delivers the inner packet.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 150" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p5d2title">
+            <title id="p5d2title">VXLAN encapsulation: a Pod-to-Pod packet wrapped in a node-to-node UDP packet</title>
+            <text x="20" y="22" class="svg-sans svg-write-text" font-size="11" font-weight="600">OUTER — added by node 1, removed by node 2</text>
+            <text x="620" y="22" text-anchor="end" class="svg-sans svg-read-text" font-size="11" font-weight="600">INNER — the original Pod packet</text>
+
+            <rect x="20" y="38" width="600" height="64" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <rect x="28" y="46" width="132" height="48" rx="4" class="svg-panel svg-write-line" stroke-width="1"/>
+            <text x="94" y="66" text-anchor="middle" class="svg-sans svg-write-text" font-size="11" font-weight="600">Outer IP</text>
+            <text x="94" y="82" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9.5">.1.10 → .1.20</text>
+            <rect x="166" y="46" width="52" height="48" rx="4" class="svg-panel svg-write-line" stroke-width="1"/>
+            <text x="192" y="74" text-anchor="middle" class="svg-sans svg-write-text" font-size="11" font-weight="600">UDP</text>
+            <rect x="224" y="46" width="62" height="48" rx="4" class="svg-panel svg-write-line" stroke-width="1"/>
+            <text x="255" y="74" text-anchor="middle" class="svg-sans svg-write-text" font-size="11" font-weight="600">VXLAN</text>
+
+            <rect x="292" y="44" width="320" height="52" rx="5" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <rect x="300" y="50" width="160" height="40" rx="4" class="svg-panel svg-read-line" stroke-width="1"/>
+            <text x="380" y="66" text-anchor="middle" class="svg-sans svg-read-text" font-size="11" font-weight="600">Inner IP</text>
+            <text x="380" y="81" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9.5">10.244.1.2 → 10.244.2.5</text>
+            <rect x="466" y="50" width="50" height="40" rx="4" class="svg-panel svg-read-line" stroke-width="1"/>
+            <text x="491" y="74" text-anchor="middle" class="svg-sans svg-read-text" font-size="11" font-weight="600">TCP</text>
+            <rect x="522" y="50" width="82" height="40" rx="4" class="svg-panel svg-read-line" stroke-width="1"/>
+            <text x="563" y="74" text-anchor="middle" class="svg-sans svg-read-text" font-size="11" font-weight="600">payload</text>
+
+            <text x="320" y="132" text-anchor="middle" class="svg-sans svg-faint-text" font-size="11">Node IPs 192.168.1.10 → 192.168.1.20 on the outside; Pod IPs untouched on the inside</text>
+          </svg>
+          <figcaption>The physical network routes only the outer header. The Pods never see the wrapping — rule 3 from s1 still holds.</figcaption>
+        </figure>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th></th><th>Routed</th><th>Overlay</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Network requirements</strong></td><td class="cell-bad">Must carry Pod routes (BGP, cloud routes)</td><td class="cell-ok">Only node-to-node reachability</td></tr>
+              <tr><td><strong>Per-packet overhead</strong></td><td class="cell-ok">None</td><td class="cell-bad">Extra headers; encapsulation CPU cost</td></tr>
+              <tr><td><strong>Debugging</strong></td><td class="cell-ok">Pod IPs visible on the wire</td><td>Must decode the tunnel to see Pod traffic</td></tr>
+              <tr><td><strong>Examples</strong></td><td>Calico (BGP), cloud VPC routes</td><td>Flannel VXLAN, Calico VXLAN or IP-in-IP</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="note write">
+          <span class="label">MTU: THE CLASSIC OVERLAY BUG</span>
+          <p>VXLAN adds about 50 bytes per packet. If the Pod interface keeps the underlay’s 1500-byte MTU, full-size packets no longer fit once wrapped. Small requests work; large responses mysteriously hang. Overlay plugins set the Pod MTU lower (typically 1450) for exactly this reason.</p>
+        </div>
+
+        <p>A third approach sidesteps the question: cloud-native plugins such as the AWS VPC CNI give Pods real addresses from the cloud network itself, so the network already knows every Pod IP — at the cost of consuming the VPC’s address space.</p>
+      </section>
+
+      <section class="card" id="s4">
+        <h2 class="sec-title">s4. CNI: The Plugin Contract</h2>
+        <p>The <strong>Container Network Interface</strong> is a deliberately small specification. A CNI plugin is just an executable. The container runtime runs it when it creates or destroys a Pod sandbox (Page I, s4) and tells it what to do through environment variables and a JSON config on stdin.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Command</th><th>The plugin must</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>ADD</code></td><td>Attach the given network namespace to the network: create interfaces, assign an IP, set routes. Return the result as JSON.</td></tr>
+              <tr><td><code>DEL</code></td><td>Undo everything <code>ADD</code> did and release the IP. Must succeed even if called twice.</td></tr>
+              <tr><td><code>CHECK</code></td><td>Verify the attachment is still as expected</td></tr>
+              <tr><td><code>VERSION</code></td><td>Report which spec versions the plugin supports</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+<pre><code># what the runtime effectively does on Pod creation
+CNI_COMMAND=ADD \
+CNI_CONTAINERID=3f9c… \
+CNI_NETNS=/var/run/netns/cni-1a2b… \
+CNI_IFNAME=eth0 \
+CNI_PATH=/opt/cni/bin \
+/opt/cni/bin/bridge &lt; /etc/cni/net.d/10-mynet.conflist
+
+# stdout
+{ "ips": [ { "address": "10.244.1.2/24", "gateway": "10.244.1.1" } ], ... }</code></pre>
+
+        <h3 class="sub-title">🧱 Plugins Compose</h3>
+        <ul>
+          <li><strong>Main plugins</strong> create the interface: <code>bridge</code>, <code>ptp</code>, <code>macvlan</code>.</li>
+          <li><strong>IPAM plugins</strong> hand out addresses: <code>host-local</code> allocates from the node’s Pod CIDR and records leases on local disk.</li>
+          <li><strong>Chained plugins</strong> run after the main one to add features — port mappings, bandwidth limits.</li>
+        </ul>
+        <p>Full network solutions — Flannel, Calico, Cilium — ship a CNI binary for the per-Pod plumbing plus a DaemonSet agent (Page IV, s5) on every node that handles the cluster-wide part: distributing routes, programming tunnels, enforcing NetworkPolicy (s9).</p>
+
+        <div class="note read">
+          <span class="label">WHY NEW NODES ARE NOTREADY</span>
+          <p>A freshly joined node reports <code>NotReady</code> with a message that the network plugin isn’t initialised until a CNI config file appears in <code>/etc/cni/net.d</code>. Without one, the runtime can’t create any Pod sandbox, so the node is unusable — which is why installing a network plugin is the first step after <code>kubeadm init</code>.</p>
+        </div>
+      </section>
+
+      <!-- ================================================= -->
+      <!-- MODULE II -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module II — The Service Layer</p>
+
+      <section class="card" id="s5">
+        <h2 class="sec-title">s5. Services: Stable Virtual IPs</h2>
+        <p>Module I made every Pod reachable. But Pod IPs are useless as addresses for clients: Pods are replaced on every rollout, rescheduled after every node failure, and scaled up and down. A client holding a Pod IP is holding something that will stop working.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Clients need one stable address for “the web backend”, while the set of Pods behind it changes constantly — and traffic should spread across all of them and skip the ones that aren’t ready.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>A Service.</strong> A stable virtual IP and DNS name, plus a label selector. Traffic to the virtual IP is spread across whichever ready Pods currently match the selector.</p>
+          </div>
+        </div>
+
+<pre><code>apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector: {app: web}        # membership by label (Page II, s3)
+  ports:
+  - port: 80                  # the Service's port
+    targetPort: 8080          # the containers' port</code></pre>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 236" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p5d3title">
+            <title id="p5d3title">A client reaches a Service virtual IP, which is spread across ready Pods listed in EndpointSlices</title>
+            <defs>
+              <marker id="p5arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="20" y="70" width="120" height="50" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="80" y="92" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Client Pod</text>
+            <text x="80" y="109" text-anchor="middle" class="svg-mono svg-soft-text" font-size="10">http://web</text>
+
+            <rect x="190" y="62" width="180" height="66" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <text x="280" y="86" text-anchor="middle" class="svg-sans svg-read-text" font-size="12.5" font-weight="600">Service web</text>
+            <text x="280" y="103" text-anchor="middle" class="svg-mono svg-soft-text" font-size="10.5">10.96.12.7:80</text>
+            <text x="280" y="119" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">virtual — no process, no interface</text>
+
+            <rect x="440" y="20" width="180" height="40" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="530" y="45" text-anchor="middle" class="svg-mono svg-ink-text" font-size="11">10.244.1.17:8080</text>
+            <rect x="440" y="75" width="180" height="40" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="530" y="100" text-anchor="middle" class="svg-mono svg-ink-text" font-size="11">10.244.2.9:8080</text>
+            <rect x="440" y="130" width="180" height="40" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4" stroke-dasharray="4 3"/>
+            <text x="530" y="149" text-anchor="middle" class="svg-mono svg-write-text" font-size="11">10.244.3.4:8080</text>
+            <text x="530" y="163" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9.5">not ready — skipped</text>
+
+            <line x1="140" y1="95" x2="187" y2="95" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr)"/>
+            <line x1="370" y1="88" x2="437" y2="42" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr)"/>
+            <line x1="370" y1="96" x2="437" y2="96" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr)"/>
+
+            <rect x="190" y="170" width="430" height="48" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="206" y="190" class="svg-sans svg-ink-text" font-size="12" font-weight="600">EndpointSlice web-x7k2</text>
+            <text x="206" y="207" class="svg-sans svg-soft-text" font-size="10.5">maintained by the EndpointSlice controller from the selector and readiness</text>
+            <line x1="280" y1="128" x2="280" y2="168" class="svg-ink-line" stroke-width="1.2" stroke-dasharray="3 3"/>
+          </svg>
+          <figcaption>The Service object holds the stable address and the selector. Which Pods are behind it right now lives in separate EndpointSlice objects.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">📇 EndpointSlices</h3>
+        <p>The Service object doesn’t list its Pods. A controller (Page III, s4) watches Services and Pods and writes <strong>EndpointSlices</strong>: lists of Pod IPs, ports and readiness for each Service, at most 100 endpoints per slice by default. Splitting into slices means a change to one Pod in a 5,000-Pod Service rewrites one small object, not a giant one that every node must download again.</p>
+
+        <h3 class="sub-title">🚪 Service Types</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Type</th><th>Reachable from</th><th>How</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>ClusterIP</strong> (default)</td><td>Inside the cluster</td><td>A virtual IP from the Service CIDR</td></tr>
+              <tr><td><strong>NodePort</strong></td><td>Outside, via any node</td><td>ClusterIP plus the same port (default range 30000–32767) opened on every node</td></tr>
+              <tr><td><strong>LoadBalancer</strong></td><td>Outside, via a cloud load balancer</td><td>NodePort plus an external load balancer provisioned by the cloud-controller-manager</td></tr>
+              <tr><td><strong>Headless</strong> (<code>clusterIP: None</code>)</td><td>Inside the cluster</td><td>No virtual IP; DNS returns the Pod IPs directly (s7)</td></tr>
+              <tr><td><strong>ExternalName</strong></td><td>Inside the cluster</td><td>A DNS CNAME to an external hostname; no proxying</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The first three are nested: a LoadBalancer Service is also a NodePort Service, which is also a ClusterIP Service.</p>
+      </section>
+
+      <section class="card" id="s6">
+        <h2 class="sec-title">s6. How kube-proxy Implements Services</h2>
+        <p>A ClusterIP is not assigned to any interface on any machine. No process listens on it. It exists only as a rule in each node’s kernel that says “packets to this address should go somewhere else”. kube-proxy (Page III, s5) watches Services and EndpointSlices and keeps those rules in sync.</p>
+
+        <h3 class="sub-title">⛓️ iptables Mode, Step by Step</h3>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 246" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p5d4title">
+            <title id="p5d4title">iptables chain walk from KUBE-SERVICES through a service chain to endpoint chains that DNAT to Pod IPs</title>
+            <defs>
+              <marker id="p5arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="20" y="84" width="170" height="58" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="105" y="106" text-anchor="middle" class="svg-mono svg-ink-text" font-size="11.5" font-weight="500">KUBE-SERVICES</text>
+            <text x="105" y="122" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">dst 10.96.12.7:80?</text>
+            <text x="105" y="135" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9.5">one match per Service</text>
+
+            <rect x="230" y="84" width="170" height="58" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="315" y="106" text-anchor="middle" class="svg-mono svg-ink-text" font-size="11.5" font-weight="500">KUBE-SVC-4N57…</text>
+            <text x="315" y="122" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">pick an endpoint</text>
+            <text x="315" y="135" text-anchor="middle" class="svg-sans svg-faint-text" font-size="9.5">at random</text>
+
+            <rect x="450" y="20" width="170" height="50" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="535" y="40" text-anchor="middle" class="svg-mono svg-read-text" font-size="11">KUBE-SEP-A…</text>
+            <text x="535" y="57" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9.5">DNAT → 10.244.1.17:8080</text>
+            <rect x="450" y="88" width="170" height="50" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="535" y="108" text-anchor="middle" class="svg-mono svg-read-text" font-size="11">KUBE-SEP-B…</text>
+            <text x="535" y="125" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9.5">DNAT → 10.244.2.9:8080</text>
+            <rect x="450" y="156" width="170" height="50" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="535" y="176" text-anchor="middle" class="svg-mono svg-read-text" font-size="11">KUBE-SEP-C…</text>
+            <text x="535" y="193" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9.5">DNAT → 10.244.4.2:8080</text>
+
+            <line x1="190" y1="113" x2="227" y2="113" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr2)"/>
+            <line x1="400" y1="104" x2="447" y2="48" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr2)"/>
+            <line x1="400" y1="113" x2="447" y2="113" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr2)"/>
+            <line x1="400" y1="122" x2="447" y2="178" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr2)"/>
+            <text x="416" y="68" class="svg-mono svg-faint-text" font-size="9.5">p=1/3</text>
+            <text x="414" y="107" class="svg-mono svg-faint-text" font-size="9.5">p=1/2</text>
+            <text x="414" y="164" class="svg-mono svg-faint-text" font-size="9.5">rest</text>
+
+            <text x="320" y="234" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5">conntrack remembers the choice — later packets of the connection and the replies follow it</text>
+          </svg>
+          <figcaption>Probabilities 1/3, then 1/2 of the remainder, then the rest give each of three endpoints an equal one-in-three share.</figcaption>
+        </figure>
+
+        <ol>
+          <li>A packet from a Pod to <code>10.96.12.7:80</code> enters the <code>nat</code> table, which jumps to <code>KUBE-SERVICES</code>.</li>
+          <li>A rule matching that destination jumps to the Service’s chain, <code>KUBE-SVC-…</code>.</li>
+          <li>That chain picks one endpoint chain using the kernel’s random statistic match.</li>
+          <li>The endpoint chain <strong>DNATs</strong> the packet: rewrites its destination to the chosen Pod’s IP and port.</li>
+          <li>The packet is now an ordinary Pod-to-Pod packet and travels as in Module I. <strong>conntrack</strong> records the translation, so replies are rewritten back to appear to come from the Service IP.</li>
+        </ol>
+<pre><code>sudo iptables -t nat -L KUBE-SERVICES -n | grep 10.96.12.7
+sudo iptables -t nat -L KUBE-SVC-4N57… -n
+sudo conntrack -L -d 10.96.12.7</code></pre>
+
+        <div class="note write">
+          <span class="label">LOAD BALANCING IS PER CONNECTION</span>
+          <p>The random choice happens once per connection, not per request. A client that opens one long-lived connection — gRPC over HTTP/2, a database pool — sends all its traffic to one Pod, and new Pods added by scaling get nothing until clients reconnect. Balancing individual requests needs a layer-7 proxy or client-side balancing.</p>
+        </div>
+
+        <h3 class="sub-title">🔁 Other Modes</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Mode</th><th>Mechanism</th><th>Trade-off</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>iptables</strong></td><td>Chains of rules, as above</td><td>Universal, but rules are matched in sequence and rewritten in bulk; slows with many thousands of Services</td></tr>
+              <tr><td><strong>IPVS</strong></td><td>The kernel’s layer-4 load balancer, using hash tables</td><td>Constant-time lookup, more balancing algorithms</td></tr>
+              <tr><td><strong>nftables</strong></td><td>The successor to iptables, with set and map lookups</td><td>Scales better than iptables; the newest mode</td></tr>
+              <tr><td><strong>eBPF</strong> (kube-proxy replacement)</td><td>Programs attached to the Pod’s interface or socket</td><td>Translates before the packet enters most of the stack; provided by plugins such as Cilium</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">🌍 Traffic from Outside: Source IPs</h3>
+        <p>A NodePort or LoadBalancer packet can arrive at a node with no local Pod for the Service. By default (<code>externalTrafficPolicy: Cluster</code>), that node forwards it to a Pod elsewhere and must <strong>SNAT</strong> it so the reply comes back the same way — and the Pod sees the node’s IP instead of the client’s. Setting <code>externalTrafficPolicy: Local</code> delivers only to Pods on the receiving node, preserving the client IP. Nodes without a local Pod then fail the load balancer’s health check, so it stops sending them traffic.</p>
+      </section>
+
+      <section class="card" id="s7">
+        <h2 class="sec-title">s7. DNS &amp; Service Discovery</h2>
+        <p>Virtual IPs are stable, but nobody wants to hard-code <code>10.96.12.7</code>. Clusters run a DNS server — almost always <strong>CoreDNS</strong>, as a Deployment behind a Service conventionally named <code>kube-dns</code> — that watches Services and EndpointSlices and answers queries from them.</p>
+
+        <h3 class="sub-title">📖 The Records</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Name</th><th>Resolves to</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>web.default.svc.cluster.local</code></td><td>The Service’s ClusterIP (an A or AAAA record)</td></tr>
+              <tr><td><code>db.default.svc.cluster.local</code> (headless)</td><td>The IPs of every ready Pod behind it</td></tr>
+              <tr><td><code>db-0.db.default.svc.cluster.local</code></td><td>One StatefulSet Pod’s IP (Page IV, s4)</td></tr>
+              <tr><td><code>_http._tcp.web.default.svc.cluster.local</code></td><td>An SRV record giving the port number of a named port</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">🔎 How a Short Name Resolves</h3>
+        <p>The kubelet writes every Pod’s <code>/etc/resolv.conf</code>:</p>
+<pre><code>nameserver 10.96.0.10                 # the kube-dns Service
+search default.svc.cluster.local svc.cluster.local cluster.local
+options ndots:5</code></pre>
+        <p>A name with fewer than five dots is tried with each search suffix first. From a Pod in <code>default</code>, <code>web</code> becomes <code>web.default.svc.cluster.local</code> and resolves on the first try. <code>web.payments</code> becomes <code>web.payments.svc.cluster.local</code> after one miss — which is how you reach a Service in another namespace.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p><code>api.github.com</code> has only two dots, so it is first tried as <code>api.github.com.default.svc.cluster.local</code>, then the other suffixes — several failed queries, for both IPv4 and IPv6, before the real lookup. At high request rates this multiplies DNS load and adds latency.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p>Use a fully qualified name with a trailing dot (<code>api.github.com.</code>), lower <code>ndots</code> for that Pod through <code>dnsConfig</code>, or run NodeLocal DNSCache so repeated lookups are answered on the node.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="s8">
+        <h2 class="sec-title">s8. Ingress &amp; Gateway API</h2>
+        <p>Services work at layer 4: IPs and ports. Exposing HTTP applications needs layer-7 decisions — route <code>/api</code> to one Service and <code>/</code> to another, terminate TLS, pick a backend by host name — and one shared entry point rather than a cloud load balancer per Service.</p>
+
+        <h3 class="sub-title">🚪 Ingress</h3>
+<pre><code>apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shop
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts: [shop.example.com]
+    secretName: shop-tls
+  rules:
+  - host: shop.example.com
+    http:
+      paths:
+      - {path: /api, pathType: Prefix, backend: {service: {name: api, port: {number: 80}}}}
+      - {path: /,    pathType: Prefix, backend: {service: {name: web, port: {number: 80}}}}</code></pre>
+        <p>An Ingress object is only configuration. Nothing happens until an <strong>Ingress controller</strong> — a reverse proxy such as NGINX, HAProxy, Traefik or Envoy, packaged with a controller that watches Ingress objects — is installed and translates them into proxy config. The controller itself is exposed through a LoadBalancer Service.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>The Ingress API covers only basic host and path routing. Everything else — header matching, traffic splitting, timeouts, rewrites — was bolted on through controller-specific annotations, so the same Ingress means different things on different controllers. One object also mixes concerns that belong to different people: the shared load balancer and an individual team’s routes.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Gateway API.</strong> A richer, portable set of resources, split by role. Ingress remains supported but is feature-frozen; new capabilities go into Gateway API.</p>
+          </div>
+        </div>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 196" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p5d5title">
+            <title id="p5d5title">Gateway API resources by role: GatewayClass, Gateway, HTTPRoute and Service</title>
+            <defs>
+              <marker id="p5arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-faint)"/>
+              </marker>
+            </defs>
+            <text x="80" y="24" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5" font-weight="600">INFRA PROVIDER</text>
+            <text x="240" y="24" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5" font-weight="600">CLUSTER OPERATOR</text>
+            <text x="400" y="24" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5" font-weight="600">APP TEAMS</text>
+            <text x="560" y="24" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5" font-weight="600">APP TEAMS</text>
+
+            <rect x="20" y="70" width="120" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="80" y="94" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">GatewayClass</text>
+            <text x="80" y="111" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">which implementation</text>
+
+            <rect x="180" y="70" width="120" height="56" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="240" y="94" text-anchor="middle" class="svg-sans svg-read-text" font-size="12" font-weight="600">Gateway</text>
+            <text x="240" y="111" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">listeners, ports, TLS</text>
+
+            <rect x="340" y="40" width="120" height="50" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="400" y="62" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">HTTPRoute</text>
+            <text x="400" y="78" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9.5">ns: shop</text>
+            <rect x="340" y="110" width="120" height="50" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="400" y="132" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">HTTPRoute</text>
+            <text x="400" y="148" text-anchor="middle" class="svg-mono svg-soft-text" font-size="9.5">ns: payments</text>
+
+            <rect x="500" y="40" width="120" height="50" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="560" y="70" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">Services</text>
+            <rect x="500" y="110" width="120" height="50" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="560" y="140" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">Services</text>
+
+            <line x1="140" y1="98" x2="177" y2="98" class="svg-ink-line" stroke-width="1.4" marker-start="url(#p5arr3)"/>
+            <line x1="300" y1="90" x2="337" y2="66" class="svg-ink-line" stroke-width="1.4" marker-start="url(#p5arr3)"/>
+            <line x1="300" y1="106" x2="337" y2="134" class="svg-ink-line" stroke-width="1.4" marker-start="url(#p5arr3)"/>
+            <line x1="460" y1="65" x2="497" y2="65" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr3)"/>
+            <line x1="460" y1="135" x2="497" y2="135" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p5arr3)"/>
+
+            <text x="320" y="186" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5">Routes attach to a Gateway by reference; each team edits only its own namespace</text>
+          </svg>
+          <figcaption>Each resource is owned by the role that understands it, and RBAC can be granted along the same lines.</figcaption>
+        </figure>
+
+<pre><code>apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: checkout
+  namespace: shop
+spec:
+  parentRefs: [{name: public, namespace: infra}]    # attach to a shared Gateway
+  hostnames: [shop.example.com]
+  rules:
+  - matches: [{path: {type: PathPrefix, value: /checkout}}]
+    backendRefs:                                      # a canary, natively
+    - {name: checkout-v1, port: 80, weight: 90}
+    - {name: checkout-v2, port: 80, weight: 10}</code></pre>
+      </section>
+
+      <section class="card" id="s9">
+        <h2 class="sec-title">s9. NetworkPolicy</h2>
+        <p>The flat network from s1 has a security consequence: by default every Pod can reach every other Pod, in every namespace. A compromised frontend can talk directly to the database.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Pod IPs change constantly, so firewall rules written in terms of IP addresses go stale within minutes.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>NetworkPolicy.</strong> Firewall rules written in terms of labels and namespaces. The network plugin translates them into IP-level rules and keeps them current as Pods come and go.</p>
+          </div>
+        </div>
+
+<pre><code>apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-allow-api
+  namespace: shop
+spec:
+  podSelector:
+    matchLabels: {app: db}           # the Pods this policy protects
+  policyTypes: [Ingress]
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels: {app: api}      # only api Pods in this namespace...
+    ports:
+    - {protocol: TCP, port: 5432}    # ...and only on the database port</code></pre>
+
+        <h3 class="sub-title">🧠 The Semantics</h3>
+        <ul>
+          <li><strong>Default allow.</strong> A Pod that no policy selects accepts all traffic.</li>
+          <li><strong>Selection isolates.</strong> As soon as any policy selects a Pod for a direction (ingress or egress), that direction becomes deny-by-default for that Pod.</li>
+          <li><strong>Rules only allow.</strong> There are no deny rules. The permitted traffic is the union of every policy that selects the Pod, so policies are additive and their order doesn’t matter.</li>
+          <li><strong>Replies are implicit.</strong> Policies are stateful: allowing a connection allows its return traffic.</li>
+        </ul>
+
+<pre><code># the usual starting point: deny all ingress in a namespace, then allow selectively
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: shop
+spec:
+  podSelector: {}          # every Pod in the namespace
+  policyTypes: [Ingress]   # with no ingress rules: nothing is allowed in</code></pre>
+
+        <div class="note write">
+          <span class="label">POLICIES ARE ONLY AS GOOD AS THE PLUGIN</span>
+          <p>The API server accepts NetworkPolicy objects whether or not anything enforces them. With a plugin that doesn’t implement policy — basic Flannel, for instance — the policies are silently ignored. And when you add egress isolation, remember to allow DNS (port 53 to <code>kube-dns</code>), or every name lookup in the namespace starts failing.</p>
+        </div>
+
+        <div class="note read">
+          <span class="label">WHERE THIS CONTINUES</span>
+          <p>NetworkPolicy controls which Pods can talk; it doesn’t prove who is talking or encrypt anything. Workload identity and API access control are covered on Page VI.</p>
+        </div>
+      </section>
+
+      <hr class="rule">
+
+      <footer class="doc-footer">
+        <p><a href="/engineering-notes/kubernetes/">&larr; Back to Kubernetes notes</a></p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // Mobile TOC toggle
+  var toggle = document.getElementById('tocToggle');
+  var inner = document.getElementById('sidebarInner');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = inner.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  // Scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('[data-toc]'));
+  var sections = links.map(function(l){
+    return document.getElementById(l.getAttribute('href').slice(1));
+  }).filter(Boolean);
+
+  if('IntersectionObserver' in window && sections.length){
+    var map = {};
+    links.forEach(function(l){ map[l.getAttribute('href').slice(1)] = l; });
+
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = map[entry.target.id];
+        if(!link) return;
+        if(entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>

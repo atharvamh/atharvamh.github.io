@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The API Server &amp; etcd — Kubernetes Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ============ TOKENS ============ */
+:root{
+  --paper:#12151C;
+  --panel:#1A1F29;
+  --ink:#E7EAF1;
+  --ink-soft:#AAB2C2;
+  --ink-faint:#727C8D;
+  --line:#2B3140;
+  --line-soft:#232936;
+
+  --write:#DD8452;      /* mutation / danger / write-path */
+  --write-soft:#2B211B;
+  --write-line:#6B4732;
+
+  --read:#4FB3A0;       /* snapshot / read-path / safe */
+  --read-soft:#16241F;
+  --read-line:#31584F;
+
+  --code-bg:#0C0F16;
+  --code-ink:#E7ECF3;
+  --code-line:#242C3D;
+
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --sidebar-w: 272px;
+  --content-w: 700px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--read); text-decoration:none;}
+a:hover{text-decoration:underline;}
+a:focus-visible, button:focus-visible, summary:focus-visible{
+  outline:2px solid var(--read);
+  outline-offset:2px;
+}
+
+/* ============ LAYOUT ============ */
+.layout{
+  display:grid;
+  grid-template-columns: var(--sidebar-w) minmax(0,1fr);
+  max-width:1180px;
+  margin:0 auto;
+}
+
+/* ---- Sidebar ---- */
+.sidebar{
+  padding:40px 28px 40px 32px;
+  position:sticky;
+  top:0;
+  align-self:start;
+  height:100vh;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+}
+.sidebar-back{
+  display:inline-block;
+  font-size:13px;
+  color:var(--ink-faint);
+  margin-bottom:28px;
+}
+.sidebar-back:hover{color:var(--read);}
+.sidebar-title{
+  font-family:var(--serif);
+  font-size:19px;
+  font-weight:600;
+  line-height:1.3;
+  margin:0 0 4px;
+  color:var(--ink);
+}
+.sidebar-sub{
+  font-size:13px;
+  color:var(--ink-faint);
+  margin:0 0 30px;
+}
+.toc-module{
+  margin-bottom:22px;
+}
+.toc-module-label{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:0 0 8px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--line-soft);
+}
+.toc-module ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.toc-module li{
+  margin:0;
+}
+.toc-link{
+  display:block;
+  position:relative;
+  padding:6px 0 6px 14px;
+  font-size:13.5px;
+  color:var(--ink-soft);
+  border-left:2px solid transparent;
+  transition:border-color .15s ease, color .15s ease;
+}
+.toc-link:hover{ color:var(--ink); text-decoration:none;}
+.toc-link.active{
+  color:var(--ink);
+  font-weight:600;
+  border-left-color:var(--read);
+}
+
+/* ---- Main content ---- */
+main{
+  padding:56px 48px 120px;
+  min-width:0;
+}
+.doc{
+  max-width:var(--content-w);
+}
+.doc-header{
+  margin-bottom:56px;
+}
+.doc-header .kicker{
+  font-size:13.5px;
+  color:var(--ink-faint);
+  margin:0 0 10px;
+}
+h1.doc-title{
+  font-family:var(--serif);
+  font-size:40px;
+  font-weight:600;
+  line-height:1.15;
+  letter-spacing:-.01em;
+  margin:0 0 16px;
+  color:var(--ink);
+}
+.doc-dek{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin:0;
+}
+
+.module-flag{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:15px;
+  color:var(--ink-faint);
+  margin:64px 0 6px;
+}
+.module-flag:first-of-type{margin-top:0;}
+
+section.card{
+  margin-bottom:64px;
+  scroll-margin-top:32px;
+}
+h2.sec-title{
+  font-family:var(--serif);
+  font-size:28px;
+  font-weight:600;
+  line-height:1.25;
+  margin:0 0 22px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line);
+  color:var(--ink);
+}
+h3.sub-title{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:600;
+  margin:36px 0 12px;
+  color:var(--ink);
+}
+h4.mini-title{
+  font-size:14.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:22px 0 8px;
+}
+p{margin:0 0 16px;}
+ul,ol{margin:0 0 16px; padding-left:22px;}
+li{margin-bottom:6px;}
+strong{color:var(--ink); font-weight:600;}
+em{color:var(--ink-soft);}
+
+code{
+  font-family:var(--mono);
+  font-size:.86em;
+  background:var(--line-soft);
+  padding:.15em .4em;
+  border-radius:3px;
+  color:var(--ink);
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  padding:16px 18px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  border:1px solid var(--code-line);
+}
+pre code{
+  background:none;
+  padding:0;
+  color:inherit;
+  font-size:13.5px;
+  line-height:1.6;
+}
+
+/* ---- Problem / Solution pairing ---- */
+.case{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+  margin:22px 0 26px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+@media(min-width:640px){
+  .case{ grid-template-columns:1fr 1fr; }
+}
+.case > div{ padding:18px 20px; }
+.case .problem{
+  background:var(--write-soft);
+  border-left:3px solid var(--write);
+}
+.case .solution{
+  background:var(--read-soft);
+  border-left:3px solid var(--read);
+}
+@media(min-width:640px){
+  .case .problem{ border-right:1px solid var(--line); }
+}
+.case .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+.case .problem .label{ color:var(--write); }
+.case .solution .label{ color:var(--read); }
+.case p:last-child{ margin-bottom:0; }
+
+/* ---- Note / callout (margin-note style) ---- */
+.note{
+  margin:20px 0 26px;
+  padding:2px 0 2px 18px;
+  border-left:3px solid var(--line);
+}
+.note.write{ border-left-color:var(--write); }
+.note.read{ border-left-color:var(--read); }
+.note .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink-faint);
+  margin-bottom:6px;
+}
+.note p{ margin-bottom:8px; color:var(--ink-soft); }
+.note p:last-child{ margin-bottom:0; }
+
+/* ---- Tables ---- */
+.table-wrap{
+  overflow-x:auto;
+  margin:20px 0 28px;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+table{
+  border-collapse:collapse;
+  width:100%;
+  font-size:14px;
+}
+th, td{
+  padding:11px 14px;
+  text-align:left;
+  border-bottom:1px solid var(--line-soft);
+  vertical-align:top;
+}
+thead th{
+  background:var(--panel);
+  font-weight:600;
+  font-size:13px;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--line);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background:rgba(255,255,255,0.025); }
+td.cell-ok{ color:var(--read); font-weight:500; }
+td.cell-bad{ color:var(--write); font-weight:500; }
+table code{ font-size:.82em; }
+
+/* ---- Diagrams ---- */
+figure.diagram{
+  margin:26px 0 30px;
+  padding:22px 20px 18px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+}
+figure.diagram svg{ display:block; width:100%; height:auto; }
+figcaption{
+  font-size:12.5px;
+  color:var(--ink-faint);
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line-soft);
+}
+figcaption .swatch{
+  display:inline-block;
+  width:9px; height:9px;
+  border-radius:2px;
+  margin-right:5px;
+  position:relative;
+  top:1px;
+}
+
+/* svg helper classes (reference CSS vars) */
+.svg-write-fill{ fill:var(--write-soft); }
+.svg-write-line{ stroke:var(--write); }
+.svg-write-text{ fill:var(--write); }
+.svg-read-fill{ fill:var(--read-soft); }
+.svg-read-line{ stroke:var(--read); }
+.svg-read-text{ fill:var(--read); }
+.svg-ink-line{ stroke:var(--line); }
+.svg-ink-text{ fill:var(--ink); }
+.svg-soft-text{ fill:var(--ink-soft); }
+.svg-faint-text{ fill:var(--ink-faint); }
+.svg-panel{ fill:var(--panel); }
+.svg-mono{ font-family:var(--mono); }
+.svg-sans{ font-family:var(--sans); }
+
+hr.rule{
+  border:none;
+  border-top:1px solid var(--line);
+  margin:56px 0;
+}
+
+footer.doc-footer{
+  margin-top:70px;
+  padding-top:24px;
+  border-top:1px solid var(--line);
+  font-size:13.5px;
+  color:var(--ink-faint);
+}
+footer.doc-footer p{ margin:0 0 6px; }
+
+/* ---- Mobile toc toggle ---- */
+.mobile-toc-toggle{ display:none; }
+
+@media (max-width:900px){
+  .layout{ grid-template-columns:1fr; }
+  .sidebar{
+    position:static;
+    height:auto;
+    border-right:none;
+    border-bottom:1px solid var(--line);
+    padding:20px 24px;
+  }
+  .sidebar-inner{ display:none; }
+  .sidebar-inner.open{ display:block; padding-top:18px; }
+  .mobile-toc-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    background:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 14px;
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  main{ padding:36px 22px 90px; }
+  h1.doc-title{ font-size:30px; }
+  .case{ grid-template-columns:1fr; }
+  .case .problem{ border-right:none; border-bottom:1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{ scroll-behavior:auto; }
+  .toc-link{ transition:none; }
+}
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar" aria-label="Table of contents">
+    <a class="sidebar-back" href="/engineering-notes/kubernetes/">&larr; Kubernetes</a>
+    <p class="sidebar-title">The API Server &amp; etcd</p>
+    <p class="sidebar-sub">Notebook</p>
+
+    <button class="mobile-toc-toggle" id="tocToggle" aria-expanded="false">
+      Contents <span aria-hidden="true">&#9662;</span>
+    </button>
+
+    <div class="sidebar-inner" id="sidebarInner">
+      <div class="toc-module">
+        <p class="toc-module-label">I. Everything Is an Object</p>
+        <ol>
+          <li><a class="toc-link" href="#s1" data-toc>The Resource Model</a></li>
+          <li><a class="toc-link" href="#s2" data-toc>Spec vs. Status</a></li>
+          <li><a class="toc-link" href="#s3" data-toc>Names, Labels &amp; Annotations</a></li>
+          <li><a class="toc-link" href="#s4" data-toc>Ownership, Deletion &amp; Finalizers</a></li>
+        </ol>
+      </div>
+      <div class="toc-module">
+        <p class="toc-module-label">II. State &amp; Watches</p>
+        <ol>
+          <li><a class="toc-link" href="#s5" data-toc>etcd &amp; Raft</a></li>
+          <li><a class="toc-link" href="#s6" data-toc>resourceVersion &amp; Conflicts</a></li>
+          <li><a class="toc-link" href="#s7" data-toc>List, Watch &amp; Informers</a></li>
+          <li><a class="toc-link" href="#s8" data-toc>The Request Path</a></li>
+        </ol>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="doc">
+
+      <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/kubernetes/">Kubernetes</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">The API server &amp; etcd</span></nav>
+      <header class="doc-header">
+        <p class="kicker">Kubernetes Notes</p>
+        <h1 class="doc-title">The API Server &amp; etcd</h1>
+        <p class="doc-dek">Every piece of Kubernetes is a client of one API, and every fact about the cluster is an object stored behind it. How those objects are shaped, how they are stored and versioned, and how controllers keep a live view of them without hammering the server.</p>
+      </header>
+
+      <!-- ================================================= -->
+      <!-- MODULE I -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module I — Everything Is an Object</p>
+
+      <section class="card" id="s1">
+        <h2 class="sec-title">s1. The Resource Model</h2>
+        <p>Page I ended with controllers that read desired state and observed state and act on the difference. Both kinds of state need a home that every component can read and write. In Kubernetes that home is a single <strong>REST API</strong>, and everything in the cluster — a Pod, a Node, a Secret, a role binding — is an <strong>object</strong> exposed through it.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Dozens of components (scheduler, controllers, kubelets, users, CI pipelines, third-party operators) all need to coordinate. Point-to-point APIs between them would mean every component knowing about every other.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>One uniform API.</strong> Every kind of object supports the same verbs — <code>get</code>, <code>list</code>, <code>watch</code>, <code>create</code>, <code>update</code>, <code>patch</code>, <code>delete</code> — at predictable URLs. Components coordinate only by reading and writing objects.</p>
+          </div>
+        </div>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p2d1title">
+            <title id="p2d1title">Anatomy of an API path: group, version, namespace, resource and name</title>
+            <text x="104" y="64" class="svg-mono" font-size="15"><tspan class="svg-faint-text">/apis/</tspan><tspan class="svg-read-text">apps</tspan><tspan class="svg-faint-text">/</tspan><tspan class="svg-read-text">v1</tspan><tspan class="svg-faint-text">/namespaces/</tspan><tspan class="svg-ink-text">default</tspan><tspan class="svg-faint-text">/</tspan><tspan class="svg-write-text">deployments</tspan><tspan class="svg-faint-text">/</tspan><tspan class="svg-ink-text">web</tspan></text>
+
+            <path d="M158,46 V42 H194 V46" fill="none" class="svg-ink-line" stroke-width="1.4"/>
+            <text x="176" y="32" text-anchor="middle" class="svg-sans svg-read-text" font-size="11" font-weight="600">group</text>
+            <path d="M329,46 V42 H392 V46" fill="none" class="svg-ink-line" stroke-width="1.4"/>
+            <text x="360.5" y="32" text-anchor="middle" class="svg-sans svg-soft-text" font-size="11" font-weight="600">namespace</text>
+            <path d="M509,46 V42 H536 V46" fill="none" class="svg-ink-line" stroke-width="1.4"/>
+            <text x="522.5" y="32" text-anchor="middle" class="svg-sans svg-soft-text" font-size="11" font-weight="600">name</text>
+
+            <path d="M203,72 V76 H221 V72" fill="none" class="svg-ink-line" stroke-width="1.4"/>
+            <text x="212" y="92" text-anchor="middle" class="svg-sans svg-read-text" font-size="11" font-weight="600">version</text>
+            <path d="M401,72 V76 H500 V72" fill="none" class="svg-ink-line" stroke-width="1.4"/>
+            <text x="450.5" y="92" text-anchor="middle" class="svg-sans svg-write-text" font-size="11" font-weight="600">resource (plural)</text>
+
+            <text x="320" y="128" text-anchor="middle" class="svg-sans svg-faint-text" font-size="11">Built-in “core” types skip the group: /api/v1/namespaces/default/pods/web-7d9f</text>
+          </svg>
+          <figcaption>The URL encodes everything needed to find an object. Cluster-scoped objects such as Nodes drop the namespace segment.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">🧭 Group, Version, Kind — and Resource</h3>
+        <ul>
+          <li><strong>Group</strong> — a family of related APIs (<code>apps</code>, <code>batch</code>, <code>networking.k8s.io</code>). The original types — Pods, Services, ConfigMaps — live in the unnamed <em>core</em> group.</li>
+          <li><strong>Version</strong> — the API version (<code>v1</code>, <code>v1beta1</code>). One stored object can be served at several versions; the API server converts between them.</li>
+          <li><strong>Kind</strong> — the type name written in your YAML (<code>Deployment</code>). Group + version + kind is the <em>GVK</em>.</li>
+          <li><strong>Resource</strong> — the lowercase plural used in the URL (<code>deployments</code>). Group + version + resource is the <em>GVR</em>. Kinds describe data; resources describe endpoints.</li>
+        </ul>
+<pre><code>kubectl api-resources              # every resource, its group and whether it is namespaced
+kubectl get --raw /apis/apps/v1    # the raw discovery document for one group/version</code></pre>
+
+        <div class="note read">
+          <span class="label">NAMESPACED VS. CLUSTER-SCOPED</span>
+          <p>Most resources live inside a <strong>namespace</strong>, a naming scope and policy boundary. A few describe the cluster itself — Nodes, PersistentVolumes, Namespaces themselves, ClusterRoles — and are <strong>cluster-scoped</strong>. Namespaces scope names and access; they do not isolate the network or the nodes.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s2">
+        <h2 class="sec-title">s2. Spec vs. Status</h2>
+        <p>Almost every object has the same three-part shape. That shape is the reconciliation loop from Page I, written down as data.</p>
+<pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:            # identity: name, namespace, uid, labels, ...
+  name: web
+  generation: 4
+spec:                # desired state — written by you
+  replicas: 3
+status:              # observed state — written by controllers
+  observedGeneration: 4
+  replicas: 3
+  readyReplicas: 2</code></pre>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th></th><th><code>spec</code></th><th><code>status</code></th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Meaning</strong></td><td>What should be true</td><td>What was last observed to be true</td></tr>
+              <tr><td><strong>Written by</strong></td><td>Users, CI, higher-level controllers</td><td>The controller that owns the object</td></tr>
+              <tr><td><strong>Endpoint</strong></td><td>The main resource</td><td>The <code>/status</code> subresource</td></tr>
+              <tr><td><strong>If lost</strong></td><td class="cell-bad">Intent is gone</td><td class="cell-ok">Rebuilt by observing the world again</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">🔀 Two Writers, Two Endpoints</h3>
+        <p>When a resource has the status subresource enabled, writes to the main endpoint ignore changes to <code>status</code>, and writes to <code>/status</code> ignore changes to everything else. Users and controllers each own their half of the object and cannot clobber the other’s, and RBAC can grant a controller access to <code>deployments/status</code> without letting it change the spec.</p>
+
+        <h3 class="sub-title">🔢 generation &amp; observedGeneration</h3>
+        <p>The API server increments <code>metadata.generation</code> every time the spec changes. When a controller finishes reconciling, it copies the generation it acted on into <code>status.observedGeneration</code>.</p>
+        <div class="note write">
+          <span class="label">READING STATUS CORRECTLY</span>
+          <p>If <code>observedGeneration &lt; generation</code>, the status describes an <em>older</em> spec — the controller hasn’t caught up with your latest change yet. Tools such as <code>kubectl rollout status</code> check this before trusting any other status field.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s3">
+        <h2 class="sec-title">s3. Names, Labels &amp; Annotations</h2>
+        <p><code>metadata</code> carries everything that identifies or describes an object without being part of its desired state.</p>
+
+        <h3 class="sub-title">🪪 Identity</h3>
+        <ul>
+          <li><strong>name</strong> — unique per resource type within a namespace. Chosen by you, or generated from <code>generateName</code>.</li>
+          <li><strong>uid</strong> — generated by the API server, unique for the lifetime of the cluster. Delete <code>web</code> and recreate it, and the name matches but the UID does not — which is how other objects can tell a replacement from the original.</li>
+        </ul>
+
+        <h3 class="sub-title">🏷️ Labels and Selectors</h3>
+        <p>Labels are short key/value pairs meant to be <strong>queried</strong>. They are how loosely coupled objects find each other: a Service doesn’t list its Pods by name, it selects every Pod whose labels match.</p>
+<pre><code>metadata:
+  labels:
+    app: web
+    tier: frontend
+
+# equality-based and set-based selectors
+kubectl get pods -l app=web,tier!=backend
+kubectl get pods -l 'env in (staging, prod)'</code></pre>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Pods come and go with new names and IPs. Anything that tracks Pods by name — a Service, a ReplicaSet — would need constant rewiring.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Select by label, not by name.</strong> Membership is a query that is re-evaluated continuously, so a new Pod with matching labels joins automatically.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">📝 Annotations</h3>
+        <p>Annotations are also key/value pairs, but they are <strong>not</strong> indexed or selectable. They hold larger, non-identifying data for tools: the last-applied manifest, a build commit, ingress-controller settings. The rule of thumb: if you would ever filter by it, it’s a label; if you only read it once you have the object, it’s an annotation.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th></th><th>Labels</th><th>Annotations</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Queryable</strong></td><td class="cell-ok">Yes — selectors</td><td class="cell-bad">No</td></tr>
+              <tr><td><strong>Value size</strong></td><td>Short (63 characters max)</td><td>Large (256 KiB total per object)</td></tr>
+              <tr><td><strong>Used for</strong></td><td>Grouping, selection, ownership matching</td><td>Tool metadata, configuration hints</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="s4">
+        <h2 class="sec-title">s4. Ownership, Deletion &amp; Finalizers</h2>
+        <p>Page I showed a Deployment creating a ReplicaSet, which creates Pods. When you delete the Deployment, something must clean up the rest — without the Deployment controller having to remember everything it ever made.</p>
+
+        <h3 class="sub-title">🔗 ownerReferences</h3>
+        <p>Each dependent object records its owner in <code>metadata.ownerReferences</code>, by kind, name and — crucially — UID.</p>
+<pre><code>metadata:
+  name: web-7d9f6c-x2k8p
+  ownerReferences:
+  - apiVersion: apps/v1
+    kind: ReplicaSet
+    name: web-7d9f6c
+    uid: 4b1e…
+    controller: true
+    blockOwnerDeletion: true</code></pre>
+        <p>The <strong>garbage collector</strong>, a controller of its own, deletes any object whose owners no longer exist. Ownership lives on the child, so the graph can be rebuilt at any time just by listing objects.</p>
+
+        <h3 class="sub-title">🧹 Cascading Deletion Policies</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Policy</th><th>What happens</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Background</strong> (kubectl default)</td><td>The owner is deleted immediately; the garbage collector deletes dependents afterwards.</td></tr>
+              <tr><td><strong>Foreground</strong></td><td>The owner stays visible, marked as deleting, until every dependent with <code>blockOwnerDeletion</code> is gone.</td></tr>
+              <tr><td><strong>Orphan</strong></td><td>The owner is deleted; dependents are kept and their owner references removed.</td></tr>
+            </tbody>
+          </table>
+        </div>
+<pre><code>kubectl delete deployment web --cascade=foreground
+kubectl delete deployment web --cascade=orphan    # keep the ReplicaSet and Pods</code></pre>
+
+        <h3 class="sub-title">⏳ Finalizers: Deletion as a Two-Phase Process</h3>
+        <p>Some objects represent things outside the API — a cloud load balancer, a disk, a backup in object storage. Removing the object from etcd before that external thing is cleaned up would leak it.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>A user deletes a PersistentVolumeClaim while a Pod still has it mounted, or deletes an object whose controller still needs to tear down an external resource. If the object vanishes instantly, nobody is left holding the reference.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Finalizers.</strong> A delete request only sets <code>metadata.deletionTimestamp</code>. The object stays in place until every entry in <code>metadata.finalizers</code> has been removed by the controller responsible for it.</p>
+          </div>
+        </div>
+
+<pre><code>metadata:
+  name: data-claim
+  deletionTimestamp: "2026-11-10T09:14:02Z"   # deletion requested
+  finalizers:
+  - kubernetes.io/pvc-protection              # removed once no Pod uses the claim</code></pre>
+
+        <div class="note write">
+          <span class="label">THE STUCK-IN-TERMINATING OBJECT</span>
+          <p>If the controller that owns a finalizer is gone — uninstalled, crashed, misconfigured — the object waits forever. Deleting the finalizer by hand releases the object, but it also skips whatever cleanup the finalizer guarded. Find out what that was first.</p>
+        </div>
+      </section>
+
+      <!-- ================================================= -->
+      <!-- MODULE II -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module II — State &amp; Watches</p>
+
+      <section class="card" id="s5">
+        <h2 class="sec-title">s5. etcd &amp; Raft: Where the Cluster Lives</h2>
+        <p>Every object from Module I is ultimately a key in <strong>etcd</strong>, a distributed key-value store. etcd is the only stateful component of the control plane: lose it, and the cluster forgets everything it was supposed to be.</p>
+<pre><code>/registry/deployments/default/web
+/registry/pods/default/web-7d9f6c-x2k8p
+/registry/nodes/worker-1
+/registry/secrets/kube-system/bootstrap-token-abcdef</code></pre>
+        <p>Only the API server talks to etcd. Every other component, including the scheduler and the controllers, goes through the API, where requests are authenticated, validated and converted.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Cluster state must survive the loss of a machine, but several copies of it are only useful if every copy agrees on the order of writes. Two replicas that disagree about whether a Pod was bound to node A or node B are worse than one replica.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Raft consensus.</strong> One member is elected leader and orders every write into a replicated log. A write is committed only once a majority of members has it on disk, so any surviving majority holds every committed write.</p>
+          </div>
+        </div>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p2d2title">
+            <title id="p2d2title">A write flows from the API server to the etcd leader, is replicated to followers, and commits on a majority</title>
+            <defs>
+              <marker id="p2arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="20" y="92" width="110" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="75" y="118" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">kube-apiserver</text>
+            <text x="75" y="135" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">client</text>
+
+            <rect x="230" y="90" width="150" height="60" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="305" y="116" text-anchor="middle" class="svg-sans svg-read-text" font-size="13" font-weight="600">etcd-1</text>
+            <text x="305" y="134" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">leader</text>
+
+            <rect x="470" y="28" width="150" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="545" y="53" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">etcd-2</text>
+            <text x="545" y="70" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">follower</text>
+
+            <rect x="470" y="156" width="150" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="545" y="181" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">etcd-3</text>
+            <text x="545" y="198" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">follower</text>
+
+            <line x1="130" y1="110" x2="227" y2="110" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr)"/>
+            <text x="179" y="102" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5">1. write</text>
+            <line x1="230" y1="132" x2="133" y2="132" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr)"/>
+            <text x="179" y="149" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5">4. committed</text>
+
+            <line x1="382" y1="104" x2="467" y2="62" class="svg-ink-line" stroke-width="1.4" marker-start="url(#p2arr)" marker-end="url(#p2arr)"/>
+            <line x1="382" y1="136" x2="467" y2="178" class="svg-ink-line" stroke-width="1.4" marker-start="url(#p2arr)" marker-end="url(#p2arr)"/>
+            <text x="424" y="72" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5">2. append</text>
+            <text x="424" y="176" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10.5">3. ack</text>
+
+            <text x="320" y="240" text-anchor="middle" class="svg-sans svg-soft-text" font-size="11">Committed once a majority — 2 of 3 — has the entry on disk</text>
+          </svg>
+          <figcaption>The leader doesn’t wait for the slowest follower. With 3 members, one can be down or lagging and writes still commit.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">🧮 Quorum Arithmetic</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Members</th><th>Majority needed</th><th>Failures tolerated</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>1</strong></td><td>1</td><td class="cell-bad">0</td></tr>
+              <tr><td><strong>3</strong></td><td>2</td><td class="cell-ok">1</td></tr>
+              <tr><td><strong>4</strong></td><td>3</td><td class="cell-bad">1 — no better than 3</td></tr>
+              <tr><td><strong>5</strong></td><td>3</td><td class="cell-ok">2</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>An even member count adds a machine without adding tolerance, which is why etcd clusters run with 3 or 5 members. More members also mean more acknowledgements per write, so bigger isn’t faster.</p>
+
+        <h3 class="sub-title">🔢 Revisions</h3>
+        <p>etcd keeps a single, cluster-wide <strong>revision</strong> counter that increases by one with every write. Each key records the revision at which it was last modified (<code>mod_revision</code>). This counter is what makes the next two sections possible: it gives every change a position in one global order.</p>
+
+        <div class="note write">
+          <span class="label">LIMITS WORTH KNOWING</span>
+          <p>etcd holds the whole dataset in memory-mapped storage with a default size quota of 2 GB, and rejects any single request over roughly 1.5 MB. That is why a ConfigMap or Secret can’t hold more than about 1 MB, and why etcd is no place for logs or large blobs.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s6">
+        <h2 class="sec-title">s6. resourceVersion &amp; Optimistic Concurrency</h2>
+        <p>Many writers act on the same objects at once: you scale a Deployment while the Deployment controller is mid-rollout and an autoscaler is adjusting replicas. Kubernetes never locks an object. Instead, every object carries a <code>metadata.resourceVersion</code>, and writes are made conditional on it.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Two clients read the same Deployment, each changes a different field, and each writes the whole object back. The second write silently erases the first client’s change.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Compare-and-swap on resourceVersion.</strong> An update must carry the version it read. If the object has changed since, the API server rejects the write with <code>409 Conflict</code>, and the client re-reads and retries.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">📅 A Conflict, Step by Step</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Time</th><th>Client A</th><th>Client B</th><th>Stored object</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>T1</strong></td><td>Reads <code>web</code> at RV 500</td><td>Reads <code>web</code> at RV 500</td><td>RV 500</td></tr>
+              <tr><td><strong>T2</strong></td><td>Updates replicas, sends RV 500</td><td></td><td class="cell-ok">Accepted → RV 517</td></tr>
+              <tr><td><strong>T3</strong></td><td></td><td>Updates image, sends RV 500</td><td class="cell-bad">409 Conflict — 500 ≠ 517</td></tr>
+              <tr><td><strong>T4</strong></td><td></td><td>Re-reads at RV 517, reapplies its change, retries</td><td class="cell-ok">Accepted → RV 523</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Underneath, the API server turns the update into an etcd transaction: <em>if</em> the key’s <code>mod_revision</code> still equals the version the client sent, <em>then</em> write the new value. No locks are held between the read and the write.</p>
+
+<pre><code>// client-go's standard retry helper
+err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+    d, err := client.AppsV1().Deployments("default").Get(ctx, "web", metav1.GetOptions{})
+    if err != nil {
+        return err
+    }
+    d.Spec.Replicas = ptr.To[int32](5)
+    _, err = client.AppsV1().Deployments("default").Update(ctx, d, metav1.UpdateOptions{})
+    return err   // a 409 makes RetryOnConflict re-run the whole closure
+})</code></pre>
+
+        <div class="note read">
+          <span class="label">TREAT IT AS OPAQUE</span>
+          <p>resourceVersion happens to be derived from etcd’s revision today, but the API contract only promises that it changes whenever the object changes. Compare it for equality; never parse it or do arithmetic on it.</p>
+        </div>
+
+        <h4 class="mini-title">Where the Check Does — and Doesn’t — Apply</h4>
+        <ul>
+          <li><strong>Update (PUT)</strong> — always checked: the full object includes its resourceVersion.</li>
+          <li><strong>Patch</strong> — not checked unless the patch body includes a resourceVersion. A patch changes only the fields it names, so it rarely needs to be.</li>
+          <li><strong>Server-side apply</strong> — conflicts are tracked per field: applying a field another manager owns returns a conflict unless you pass <code>--force-conflicts</code>.</li>
+        </ul>
+      </section>
+
+      <section class="card" id="s7">
+        <h2 class="sec-title">s7. List, Watch &amp; Informers</h2>
+        <p>A controller needs a constantly up-to-date view of the objects it manages. Polling with <code>list</code> every second would bury the API server, so the API offers a second primitive: <strong>watch</strong>.</p>
+<pre><code># list once, note the collection's resourceVersion...
+GET /api/v1/namespaces/default/pods
+  → { "metadata": { "resourceVersion": "8812" }, "items": [ ... ] }
+
+# ...then stream every change after it
+GET /api/v1/namespaces/default/pods?watch=true&amp;resourceVersion=8812
+  → {"type":"ADDED",    "object":{...}}
+  → {"type":"MODIFIED", "object":{...}}
+  → {"type":"DELETED",  "object":{...}}</code></pre>
+        <p>List gives the current state at one revision; watch streams every change after that revision. Together they never miss an event and never deliver one twice — the global ordering from s5 at work.</p>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Watches break: connections drop, the API server restarts, and etcd periodically compacts old revisions. Resuming a watch from a revision that has been compacted away is impossible.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p>The server answers with <code>410 Gone</code>, and the client falls back to a fresh <strong>list</strong> followed by a new watch. This is the level-triggered recovery from Page I, built into the protocol. Periodic <code>BOOKMARK</code> events advance the client’s revision so reconnects rarely hit this.</p>
+          </div>
+        </div>
+
+        <h3 class="sub-title">📡 The Informer Pattern</h3>
+        <p>Writing list-and-watch handling, reconnects and caching correctly in every controller would be error-prone, so client-go packages it as an <strong>informer</strong>.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 286" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p2d3title">
+            <title id="p2d3title">Informer pipeline: reflector, DeltaFIFO, indexer cache, event handlers, workqueue and reconcile</title>
+            <defs>
+              <marker id="p2arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="var(--ink-faint)"/>
+              </marker>
+            </defs>
+
+            <rect x="20" y="20" width="140" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="90" y="40" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">API server</text>
+            <text x="90" y="56" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">list + watch</text>
+
+            <rect x="200" y="20" width="180" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="290" y="40" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Reflector</text>
+            <text x="290" y="56" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">lists, watches, relists on 410</text>
+
+            <rect x="420" y="20" width="200" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="520" y="40" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">DeltaFIFO</text>
+            <text x="520" y="56" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">ordered queue of changes</text>
+
+            <rect x="420" y="120" width="200" height="46" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="520" y="140" text-anchor="middle" class="svg-sans svg-read-text" font-size="12.5" font-weight="600">Indexer</text>
+            <text x="520" y="156" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">local cache of every object</text>
+
+            <rect x="200" y="120" width="180" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="290" y="140" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Event handlers</text>
+            <text x="290" y="156" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">enqueue the object’s key</text>
+
+            <rect x="200" y="220" width="180" height="46" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="290" y="240" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12.5" font-weight="600">Workqueue</text>
+            <text x="290" y="256" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">deduplicates, rate-limits</text>
+
+            <rect x="20" y="220" width="140" height="46" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="90" y="240" text-anchor="middle" class="svg-sans svg-write-text" font-size="12.5" font-weight="600">Reconcile(key)</text>
+            <text x="90" y="256" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">reads cache, writes API</text>
+
+            <line x1="160" y1="43" x2="197" y2="43" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr3)"/>
+            <line x1="380" y1="43" x2="417" y2="43" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr3)"/>
+            <line x1="520" y1="66" x2="520" y2="117" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr3)"/>
+            <line x1="420" y1="143" x2="383" y2="143" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr3)"/>
+            <line x1="290" y1="166" x2="290" y2="217" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr3)"/>
+            <line x1="200" y1="243" x2="163" y2="243" class="svg-ink-line" stroke-width="1.4" marker-end="url(#p2arr3)"/>
+            <line x1="90" y1="220" x2="90" y2="69" class="svg-ink-line" stroke-width="1.4" stroke-dasharray="4 4" marker-end="url(#p2arr3)"/>
+            <text x="98" y="148" class="svg-sans svg-faint-text" font-size="10.5">writes</text>
+          </svg>
+          <figcaption>Reads come from the local cache; only writes go back to the API server. The workqueue carries keys, not events — the level-triggered design from Page I.</figcaption>
+        </figure>
+
+        <ul>
+          <li><strong>Reflector</strong> — runs the list-then-watch loop and handles reconnects and relists.</li>
+          <li><strong>DeltaFIFO</strong> — queues each change in order, per object.</li>
+          <li><strong>Indexer</strong> — an in-memory, thread-safe cache of every watched object, with optional indexes (for example, Pods by node). Controllers read from here, not from the API server.</li>
+          <li><strong>Event handlers</strong> — <code>OnAdd</code>, <code>OnUpdate</code>, <code>OnDelete</code>. In a well-written controller they do nothing but enqueue <code>namespace/name</code>.</li>
+          <li><strong>Workqueue</strong> — collapses repeated keys (ten updates to one object become one reconcile), retries failures with backoff, and guarantees a key is never processed by two workers at once.</li>
+        </ul>
+
+        <div class="note write">
+          <span class="label">THE CACHE IS SLIGHTLY STALE</span>
+          <p>A reconcile reads from the informer cache, which can lag the API server by a few milliseconds — or more under load. A controller may act on state that has already changed. That is safe precisely because of s6: a write based on a stale read fails with a conflict, and the key is requeued.</p>
+        </div>
+
+        <h4 class="mini-title">Shared Informers</h4>
+        <p>Inside one process, a <code>SharedInformerFactory</code> gives every controller that cares about Pods the same informer: one watch connection and one cache, however many consumers. The API server keeps a watch cache of its own, so thousands of watchers don’t each become an etcd watch.</p>
+      </section>
+
+      <section class="card" id="s8">
+        <h2 class="sec-title">s8. The Request Path</h2>
+        <p>Every write, whether from <code>kubectl</code>, a controller or a kubelet, passes through the same sequence of stages inside the API server before it reaches etcd. Any stage can reject it.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p2d4title">
+            <title id="p2d4title">API request stages: authenticate, authorize, mutating admission, schema validation, validating admission, persist</title>
+
+            <rect x="20" y="40" width="90" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="65" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">Authenticate</text>
+            <text x="65" y="80" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">who are you?</text>
+
+            <rect x="123" y="40" width="90" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="168" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">Authorize</text>
+            <text x="168" y="80" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">may you?</text>
+
+            <rect x="226" y="40" width="90" height="56" rx="6" class="svg-write-fill svg-write-line" stroke-width="1.4"/>
+            <text x="271" y="64" text-anchor="middle" class="svg-sans svg-write-text" font-size="11.5" font-weight="600">Mutating</text>
+            <text x="271" y="80" text-anchor="middle" class="svg-sans svg-write-text" font-size="11.5" font-weight="600">admission</text>
+
+            <rect x="329" y="40" width="90" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="374" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">Schema</text>
+            <text x="374" y="80" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">validation</text>
+
+            <rect x="432" y="40" width="90" height="56" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="477" y="64" text-anchor="middle" class="svg-sans svg-read-text" font-size="11.5" font-weight="600">Validating</text>
+            <text x="477" y="80" text-anchor="middle" class="svg-sans svg-read-text" font-size="11.5" font-weight="600">admission</text>
+
+            <rect x="535" y="40" width="90" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="580" y="64" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">Persist</text>
+            <text x="580" y="80" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10">to etcd</text>
+
+            <polygon points="122,68 115,64 115,72" fill="var(--ink-faint)"/>
+            <polygon points="225,68 218,64 218,72" fill="var(--ink-faint)"/>
+            <polygon points="328,68 321,64 321,72" fill="var(--ink-faint)"/>
+            <polygon points="431,68 424,64 424,72" fill="var(--ink-faint)"/>
+            <polygon points="534,68 527,64 527,72" fill="var(--ink-faint)"/>
+
+            <text x="65" y="118" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">fails: 401</text>
+            <text x="168" y="118" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">fails: 403</text>
+            <text x="271" y="118" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">may change</text>
+            <text x="271" y="132" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">the object</text>
+            <text x="374" y="118" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">fails: 422</text>
+            <text x="477" y="118" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">accept or</text>
+            <text x="477" y="132" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">reject only</text>
+            <text x="580" y="118" text-anchor="middle" class="svg-sans svg-faint-text" font-size="10">200 / 201</text>
+          </svg>
+          <figcaption>Mutation always happens before validation, so validators see the object exactly as it will be stored.</figcaption>
+        </figure>
+
+        <h3 class="sub-title">🔐 The Stages</h3>
+        <ul>
+          <li><strong>Authentication</strong> — establishes <em>who</em> is calling: X.509 client certificates, ServiceAccount tokens, OIDC tokens from an identity provider. Kubernetes has no user database of its own; a “user” is just a name an authenticator vouches for.</li>
+          <li><strong>Authorization</strong> — decides whether that identity may perform this verb on this resource. Usually RBAC, alongside the Node authorizer that limits each kubelet to its own node’s objects (Page VI).</li>
+          <li><strong>Mutating admission</strong> — may modify the object: filling in defaults, injecting a sidecar, attaching a ServiceAccount token. Built-in plugins run first, then mutating webhooks.</li>
+          <li><strong>Schema validation</strong> — checks the object against its type’s schema: required fields, value formats, immutable fields.</li>
+          <li><strong>Validating admission</strong> — policy checks that can only accept or reject: resource quotas, Pod Security admission, <code>ValidatingAdmissionPolicy</code> rules written in CEL, validating webhooks.</li>
+          <li><strong>Persist</strong> — the object is written to etcd with the conditional write from s6, and watchers are notified.</li>
+        </ul>
+
+<pre><code># run the whole pipeline — admission and validation included — without persisting
+kubectl apply -f web.yaml --dry-run=server
+
+# ask the authorizer directly
+kubectl auth can-i create deployments --namespace default</code></pre>
+
+        <div class="note read">
+          <span class="label">EXTENSION POINTS</span>
+          <p>Two of these stages — authentication via webhooks and OIDC, and admission via webhooks and CEL policies — are where most cluster policy and tooling plugs in. Page VII builds an admission webhook.</p>
+        </div>
+      </section>
+
+      <hr class="rule">
+
+      <footer class="doc-footer">
+        <p><a href="/engineering-notes/kubernetes/">&larr; Back to Kubernetes notes</a></p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // Mobile TOC toggle
+  var toggle = document.getElementById('tocToggle');
+  var inner = document.getElementById('sidebarInner');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = inner.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  // Scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('[data-toc]'));
+  var sections = links.map(function(l){
+    return document.getElementById(l.getAttribute('href').slice(1));
+  }).filter(Boolean);
+
+  if('IntersectionObserver' in window && sections.length){
+    var map = {};
+    links.forEach(function(l){ map[l.getAttribute('href').slice(1)] = l; });
+
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = map[entry.target.id];
+        if(!link) return;
+        if(entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>

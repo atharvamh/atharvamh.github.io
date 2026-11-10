@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control Plane &amp; Node Architecture — Kubernetes Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+/* ============ TOKENS ============ */
+:root{
+  --paper:#12151C;
+  --panel:#1A1F29;
+  --ink:#E7EAF1;
+  --ink-soft:#AAB2C2;
+  --ink-faint:#727C8D;
+  --line:#2B3140;
+  --line-soft:#232936;
+
+  --write:#DD8452;      /* mutation / danger / write-path */
+  --write-soft:#2B211B;
+  --write-line:#6B4732;
+
+  --read:#4FB3A0;       /* snapshot / read-path / safe */
+  --read-soft:#16241F;
+  --read-line:#31584F;
+
+  --code-bg:#0C0F16;
+  --code-ink:#E7ECF3;
+  --code-line:#242C3D;
+
+  --serif: "Source Serif 4", Georgia, serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --sidebar-w: 272px;
+  --content-w: 700px;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--read); text-decoration:none;}
+a:hover{text-decoration:underline;}
+a:focus-visible, button:focus-visible, summary:focus-visible{
+  outline:2px solid var(--read);
+  outline-offset:2px;
+}
+
+/* ============ LAYOUT ============ */
+.layout{
+  display:grid;
+  grid-template-columns: var(--sidebar-w) minmax(0,1fr);
+  max-width:1180px;
+  margin:0 auto;
+}
+
+/* ---- Sidebar ---- */
+.sidebar{
+  padding:40px 28px 40px 32px;
+  position:sticky;
+  top:0;
+  align-self:start;
+  height:100vh;
+  overflow-y:auto;
+  border-right:1px solid var(--line);
+}
+.sidebar-back{
+  display:inline-block;
+  font-size:13px;
+  color:var(--ink-faint);
+  margin-bottom:28px;
+}
+.sidebar-back:hover{color:var(--read);}
+.sidebar-title{
+  font-family:var(--serif);
+  font-size:19px;
+  font-weight:600;
+  line-height:1.3;
+  margin:0 0 4px;
+  color:var(--ink);
+}
+.sidebar-sub{
+  font-size:13px;
+  color:var(--ink-faint);
+  margin:0 0 30px;
+}
+.toc-module{
+  margin-bottom:22px;
+}
+.toc-module-label{
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:0 0 8px;
+  padding-bottom:6px;
+  border-bottom:1px solid var(--line-soft);
+}
+.toc-module ol{
+  list-style:none;
+  margin:0;
+  padding:0;
+}
+.toc-module li{
+  margin:0;
+}
+.toc-link{
+  display:block;
+  position:relative;
+  padding:6px 0 6px 14px;
+  font-size:13.5px;
+  color:var(--ink-soft);
+  border-left:2px solid transparent;
+  transition:border-color .15s ease, color .15s ease;
+}
+.toc-link:hover{ color:var(--ink); text-decoration:none;}
+.toc-link.active{
+  color:var(--ink);
+  font-weight:600;
+  border-left-color:var(--read);
+}
+
+/* ---- Main content ---- */
+main{
+  padding:56px 48px 120px;
+  min-width:0;
+}
+.doc{
+  max-width:var(--content-w);
+}
+.doc-header{
+  margin-bottom:56px;
+}
+.doc-header .kicker{
+  font-size:13.5px;
+  color:var(--ink-faint);
+  margin:0 0 10px;
+}
+h1.doc-title{
+  font-family:var(--serif);
+  font-size:40px;
+  font-weight:600;
+  line-height:1.15;
+  letter-spacing:-.01em;
+  margin:0 0 16px;
+  color:var(--ink);
+}
+.doc-dek{
+  font-size:17px;
+  color:var(--ink-soft);
+  max-width:60ch;
+  margin:0;
+}
+
+.module-flag{
+  font-family:var(--serif);
+  font-style:italic;
+  font-size:15px;
+  color:var(--ink-faint);
+  margin:64px 0 6px;
+}
+.module-flag:first-of-type{margin-top:0;}
+
+section.card{
+  margin-bottom:64px;
+  scroll-margin-top:32px;
+}
+h2.sec-title{
+  font-family:var(--serif);
+  font-size:28px;
+  font-weight:600;
+  line-height:1.25;
+  margin:0 0 22px;
+  padding-bottom:16px;
+  border-bottom:1px solid var(--line);
+  color:var(--ink);
+}
+h3.sub-title{
+  font-family:var(--serif);
+  font-size:20px;
+  font-weight:600;
+  margin:36px 0 12px;
+  color:var(--ink);
+}
+h4.mini-title{
+  font-size:14.5px;
+  font-weight:600;
+  color:var(--ink-soft);
+  margin:22px 0 8px;
+}
+p{margin:0 0 16px;}
+ul,ol{margin:0 0 16px; padding-left:22px;}
+li{margin-bottom:6px;}
+strong{color:var(--ink); font-weight:600;}
+em{color:var(--ink-soft);}
+
+code{
+  font-family:var(--mono);
+  font-size:.86em;
+  background:var(--line-soft);
+  padding:.15em .4em;
+  border-radius:3px;
+  color:var(--ink);
+}
+pre{
+  background:var(--code-bg);
+  color:var(--code-ink);
+  padding:16px 18px;
+  border-radius:6px;
+  overflow-x:auto;
+  margin:0 0 20px;
+  border:1px solid var(--code-line);
+}
+pre code{
+  background:none;
+  padding:0;
+  color:inherit;
+  font-size:13.5px;
+  line-height:1.6;
+}
+
+/* ---- Problem / Solution pairing ---- */
+.case{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:0;
+  margin:22px 0 26px;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+@media(min-width:640px){
+  .case{ grid-template-columns:1fr 1fr; }
+}
+.case > div{ padding:18px 20px; }
+.case .problem{
+  background:var(--write-soft);
+  border-left:3px solid var(--write);
+}
+.case .solution{
+  background:var(--read-soft);
+  border-left:3px solid var(--read);
+}
+@media(min-width:640px){
+  .case .problem{ border-right:1px solid var(--line); }
+}
+.case .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  margin-bottom:8px;
+}
+.case .problem .label{ color:var(--write); }
+.case .solution .label{ color:var(--read); }
+.case p:last-child{ margin-bottom:0; }
+
+/* ---- Note / callout (margin-note style) ---- */
+.note{
+  margin:20px 0 26px;
+  padding:2px 0 2px 18px;
+  border-left:3px solid var(--line);
+}
+.note.write{ border-left-color:var(--write); }
+.note.read{ border-left-color:var(--read); }
+.note .label{
+  display:block;
+  font-size:12px;
+  font-weight:600;
+  color:var(--ink-faint);
+  margin-bottom:6px;
+}
+.note p{ margin-bottom:8px; color:var(--ink-soft); }
+.note p:last-child{ margin-bottom:0; }
+
+/* ---- Tables ---- */
+.table-wrap{
+  overflow-x:auto;
+  margin:20px 0 28px;
+  border:1px solid var(--line);
+  border-radius:6px;
+}
+table{
+  border-collapse:collapse;
+  width:100%;
+  font-size:14px;
+}
+th, td{
+  padding:11px 14px;
+  text-align:left;
+  border-bottom:1px solid var(--line-soft);
+  vertical-align:top;
+}
+thead th{
+  background:var(--panel);
+  font-weight:600;
+  font-size:13px;
+  color:var(--ink-soft);
+  border-bottom:1px solid var(--line);
+}
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr:hover{ background:rgba(255,255,255,0.025); }
+td.cell-ok{ color:var(--read); font-weight:500; }
+td.cell-bad{ color:var(--write); font-weight:500; }
+table code{ font-size:.82em; }
+
+/* ---- Diagrams ---- */
+figure.diagram{
+  margin:26px 0 30px;
+  padding:22px 20px 18px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:8px;
+}
+figure.diagram svg{ display:block; width:100%; height:auto; }
+figcaption{
+  font-size:12.5px;
+  color:var(--ink-faint);
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--line-soft);
+}
+figcaption .swatch{
+  display:inline-block;
+  width:9px; height:9px;
+  border-radius:2px;
+  margin-right:5px;
+  position:relative;
+  top:1px;
+}
+
+/* svg helper classes (reference CSS vars) */
+.svg-write-fill{ fill:var(--write-soft); }
+.svg-write-line{ stroke:var(--write); }
+.svg-write-text{ fill:var(--write); }
+.svg-read-fill{ fill:var(--read-soft); }
+.svg-read-line{ stroke:var(--read); }
+.svg-read-text{ fill:var(--read); }
+.svg-ink-line{ stroke:var(--line); }
+.svg-ink-text{ fill:var(--ink); }
+.svg-soft-text{ fill:var(--ink-soft); }
+.svg-faint-text{ fill:var(--ink-faint); }
+.svg-panel{ fill:var(--panel); }
+.svg-mono{ font-family:var(--mono); }
+.svg-sans{ font-family:var(--sans); }
+
+hr.rule{
+  border:none;
+  border-top:1px solid var(--line);
+  margin:56px 0;
+}
+
+footer.doc-footer{
+  margin-top:70px;
+  padding-top:24px;
+  border-top:1px solid var(--line);
+  font-size:13.5px;
+  color:var(--ink-faint);
+}
+footer.doc-footer p{ margin:0 0 6px; }
+
+/* ---- Mobile toc toggle ---- */
+.mobile-toc-toggle{ display:none; }
+
+@media (max-width:900px){
+  .layout{ grid-template-columns:1fr; }
+  .sidebar{
+    position:static;
+    height:auto;
+    border-right:none;
+    border-bottom:1px solid var(--line);
+    padding:20px 24px;
+  }
+  .sidebar-inner{ display:none; }
+  .sidebar-inner.open{ display:block; padding-top:18px; }
+  .mobile-toc-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    width:100%;
+    background:none;
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 14px;
+    font-family:var(--sans);
+    font-size:14px;
+    font-weight:600;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  main{ padding:36px 22px 90px; }
+  h1.doc-title{ font-size:30px; }
+  .case{ grid-template-columns:1fr; }
+  .case .problem{ border-right:none; border-bottom:1px solid var(--line); }
+}
+
+@media (prefers-reduced-motion:reduce){
+  html{ scroll-behavior:auto; }
+  .toc-link{ transition:none; }
+}
+</style>
+<meta name="robots" content="noindex, noarchive, nosnippet">
+<link rel="stylesheet" href="/assets/css/crumbs.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav class="sidebar" aria-label="Table of contents">
+    <a class="sidebar-back" href="/engineering-notes/kubernetes/">&larr; Kubernetes</a>
+    <p class="sidebar-title">Control Plane &amp; Node Architecture</p>
+    <p class="sidebar-sub">Notebook</p>
+
+    <button class="mobile-toc-toggle" id="tocToggle" aria-expanded="false">
+      Contents <span aria-hidden="true">&#9662;</span>
+    </button>
+
+    <div class="sidebar-inner" id="sidebarInner">
+      <div class="toc-module">
+        <p class="toc-module-label">I. The Components</p>
+        <ol>
+          <li><a class="toc-link" href="#s1" data-toc>The Shape of a Cluster</a></li>
+          <li><a class="toc-link" href="#s2" data-toc>kube-apiserver</a></li>
+          <li><a class="toc-link" href="#s3" data-toc>kube-scheduler</a></li>
+          <li><a class="toc-link" href="#s4" data-toc>The Controller Managers</a></li>
+          <li><a class="toc-link" href="#s5" data-toc>kubelet &amp; kube-proxy</a></li>
+        </ol>
+      </div>
+      <div class="toc-module">
+        <p class="toc-module-label">II. End to End</p>
+        <ol>
+          <li><a class="toc-link" href="#s6" data-toc>Tracing kubectl apply</a></li>
+          <li><a class="toc-link" href="#s7" data-toc>Failure Modes</a></li>
+          <li><a class="toc-link" href="#s8" data-toc>High Availability &amp; Leases</a></li>
+        </ol>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+    <div class="doc">
+
+      <nav class="crumbs is-inherit" aria-label="Breadcrumb"><a href="/">Home</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/">Engineering notes</a><span class="sep" aria-hidden="true">/</span><a href="/engineering-notes/kubernetes/">Kubernetes</a><span class="sep" aria-hidden="true">/</span><span aria-current="page">Control plane &amp; node architecture</span></nav>
+      <header class="doc-header">
+        <p class="kicker">Kubernetes Notes</p>
+        <h1 class="doc-title">Control Plane &amp; Node Architecture</h1>
+        <p class="doc-dek">The handful of processes that make up a cluster, what each one watches and writes, how they cooperate to turn one <code>kubectl apply</code> into running containers, and what keeps working when any one of them dies.</p>
+      </header>
+
+      <!-- ================================================= -->
+      <!-- MODULE I -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module I — The Components</p>
+
+      <section class="card" id="s1">
+        <h2 class="sec-title">s1. The Shape of a Cluster</h2>
+        <p>A cluster splits into two halves. The <strong>control plane</strong> stores desired state and decides what should happen. The <strong>nodes</strong> — the data plane — run the actual workloads. Every component, on either side, is a client of the API server from Page II, and none of them talks to another directly.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 396" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p3d1title">
+            <title id="p3d1title">Cluster architecture: control plane components and node components all connect only to the API server</title>
+
+            <rect x="20" y="16" width="600" height="176" rx="8" fill="none" class="svg-ink-line" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text x="36" y="38" class="svg-sans svg-faint-text" font-size="11" font-weight="600">CONTROL PLANE</text>
+
+            <rect x="40" y="80" width="140" height="56" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="110" y="105" text-anchor="middle" class="svg-sans svg-ink-text" font-size="13" font-weight="600">etcd</text>
+            <text x="110" y="122" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">all cluster state</text>
+
+            <rect x="245" y="80" width="150" height="56" rx="6" class="svg-read-fill svg-read-line" stroke-width="1.4"/>
+            <text x="320" y="105" text-anchor="middle" class="svg-sans svg-read-text" font-size="13" font-weight="600">kube-apiserver</text>
+            <text x="320" y="122" text-anchor="middle" class="svg-sans svg-soft-text" font-size="10.5">the only door</text>
+
+            <rect x="460" y="48" width="144" height="36" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="532" y="71" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">kube-scheduler</text>
+            <rect x="460" y="94" width="144" height="36" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="532" y="117" text-anchor="middle" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">controller-manager</text>
+            <rect x="460" y="140" width="144" height="36" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="532" y="163" text-anchor="middle" class="svg-sans svg-soft-text" font-size="11">cloud-controller-mgr</text>
+
+            <line x1="180" y1="108" x2="245" y2="108" class="svg-read-line" stroke-width="1.6"/>
+            <line x1="395" y1="100" x2="460" y2="66" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="395" y1="108" x2="460" y2="112" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="395" y1="116" x2="460" y2="158" class="svg-ink-line" stroke-width="1.4"/>
+
+            <rect x="20" y="228" width="290" height="152" rx="8" fill="none" class="svg-ink-line" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text x="36" y="250" class="svg-sans svg-faint-text" font-size="11" font-weight="600">NODE 1</text>
+            <rect x="36" y="262" width="120" height="34" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="96" y="284" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">kubelet</text>
+            <rect x="174" y="262" width="120" height="34" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="234" y="284" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">kube-proxy</text>
+            <rect x="36" y="304" width="258" height="30" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="165" y="324" text-anchor="middle" class="svg-sans svg-soft-text" font-size="11">container runtime (CRI)</text>
+            <rect x="36" y="342" width="78" height="26" rx="5" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="75" y="359" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Pod</text>
+            <rect x="126" y="342" width="78" height="26" rx="5" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="165" y="359" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Pod</text>
+            <rect x="216" y="342" width="78" height="26" rx="5" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="255" y="359" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Pod</text>
+
+            <rect x="330" y="228" width="290" height="152" rx="8" fill="none" class="svg-ink-line" stroke-width="1.2" stroke-dasharray="5 4"/>
+            <text x="346" y="250" class="svg-sans svg-faint-text" font-size="11" font-weight="600">NODE 2</text>
+            <rect x="346" y="262" width="120" height="34" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="406" y="284" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">kubelet</text>
+            <rect x="484" y="262" width="120" height="34" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="544" y="284" text-anchor="middle" class="svg-sans svg-ink-text" font-size="12" font-weight="600">kube-proxy</text>
+            <rect x="346" y="304" width="258" height="30" rx="6" class="svg-panel svg-ink-line" stroke-width="1.4"/>
+            <text x="475" y="324" text-anchor="middle" class="svg-sans svg-soft-text" font-size="11">container runtime (CRI)</text>
+            <rect x="346" y="342" width="78" height="26" rx="5" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="385" y="359" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Pod</text>
+            <rect x="436" y="342" width="78" height="26" rx="5" class="svg-write-fill svg-write-line" stroke-width="1.2"/>
+            <text x="475" y="359" text-anchor="middle" class="svg-sans svg-write-text" font-size="10.5">Pod</text>
+
+            <line x1="96" y1="262" x2="298" y2="136" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="234" y1="262" x2="312" y2="136" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="406" y1="262" x2="328" y2="136" class="svg-ink-line" stroke-width="1.4"/>
+            <line x1="544" y1="262" x2="342" y2="136" class="svg-ink-line" stroke-width="1.4"/>
+          </svg>
+          <figcaption>Every line ends at the API server — a hub-and-spoke design. Only the API server talks to etcd.</figcaption>
+        </figure>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Component</th><th>Runs on</th><th>Watches</th><th>Writes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>kube-apiserver</strong></td><td>Control plane</td><td>—</td><td>etcd</td></tr>
+              <tr><td><strong>kube-scheduler</strong></td><td>Control plane</td><td>Pods with no node, Nodes</td><td>Pod bindings</td></tr>
+              <tr><td><strong>kube-controller-manager</strong></td><td>Control plane</td><td>Almost everything</td><td>Almost everything</td></tr>
+              <tr><td><strong>cloud-controller-manager</strong></td><td>Control plane</td><td>Nodes, Services</td><td>Cloud resources, Node addresses</td></tr>
+              <tr><td><strong>kubelet</strong></td><td>Every node</td><td>Pods bound to its node</td><td>Pod status, Node status, its Lease</td></tr>
+              <tr><td><strong>kube-proxy</strong></td><td>Every node</td><td>Services, EndpointSlices</td><td>Local packet-forwarding rules only</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="s2">
+        <h2 class="sec-title">s2. kube-apiserver: The Only Door</h2>
+        <p>Page II covered what the API server <em>does</em> — the resource model, conditional writes, watches and the request pipeline. Architecturally, two properties matter:</p>
+        <ul>
+          <li><strong>It is stateless.</strong> All state lives in etcd, so any number of API server replicas can run side by side behind a load balancer, and any one can serve any request.</li>
+          <li><strong>It is the single choke point.</strong> Every read, write and watch from every component goes through it. That is what makes authentication, authorization, admission and auditing enforceable — there is no back door.</li>
+        </ul>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>A single choke point can be overwhelmed. One misbehaving controller listing every Pod in a loop, or a burst of thousands of new watchers, can starve the kubelets and system controllers that keep the cluster alive.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>API Priority and Fairness.</strong> Requests are classified into priority levels — system and node traffic above ordinary workload controllers — and queued fairly within each level, so a noisy client exhausts only its own share.</p>
+          </div>
+        </div>
+
+        <div class="note read">
+          <span class="label">THE WATCH CACHE</span>
+          <p>Each API server keeps an in-memory cache of recent objects and events per resource type. Most list and watch requests are served from that cache rather than from etcd, so thousands of watchers cost etcd almost nothing.</p>
+        </div>
+      </section>
+
+      <section class="card" id="s3">
+        <h2 class="sec-title">s3. kube-scheduler: Placing Pods</h2>
+        <p>The scheduler is a controller with one job: find every Pod whose <code>spec.nodeName</code> is empty, choose a node for it, and record the choice. It never starts anything itself.</p>
+
+        <h3 class="sub-title">🎯 Filter, Score, Bind</h3>
+        <ol>
+          <li><strong>Filter</strong> — discard nodes that cannot run the Pod: not enough unrequested CPU or memory, a taint the Pod doesn’t tolerate, a node selector or affinity rule that doesn’t match, a volume in a different zone.</li>
+          <li><strong>Score</strong> — rank the remaining nodes: spread replicas across zones, prefer nodes that already have the image, balance utilisation.</li>
+          <li><strong>Bind</strong> — write a Binding for the highest-scoring node, which sets the Pod’s <code>spec.nodeName</code>.</li>
+        </ol>
+        <p>Each stage is a set of plugins in the <em>scheduling framework</em>, so the behaviour is configurable without forking the scheduler.</p>
+
+        <div class="note write">
+          <span class="label">THE SCHEDULER RESERVES NOTHING ON THE NODE</span>
+          <p>Scheduling is bookkeeping against <em>requests</em>, not actual usage: the scheduler adds up the requests of Pods already bound to each node. Binding a Pod writes one field. The node learns about it only when its kubelet sees the change. Page IV covers requests, limits and the placement rules in depth.</p>
+        </div>
+
+        <p>A Pod created with <code>spec.nodeName</code> already set skips the scheduler entirely — the kubelet on that node simply runs it. That is how DaemonSet Pods were placed for years, and why a typo in a hand-set node name leaves a Pod pending forever.</p>
+      </section>
+
+      <section class="card" id="s4">
+        <h2 class="sec-title">s4. The Controller Managers</h2>
+        <p>Rather than running dozens of separate processes, Kubernetes compiles most of its built-in controllers into a single binary, <strong>kube-controller-manager</strong>. Each one is an independent reconcile loop with its own informers and workqueue (Page II, s7); they just share a process.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Controller</th><th>Reconciles</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>Deployment</strong></td><td>Deployments into ReplicaSets, managing rollouts</td></tr>
+              <tr><td><strong>ReplicaSet</strong></td><td>The number of Pods matching a selector</td></tr>
+              <tr><td><strong>StatefulSet, DaemonSet, Job, CronJob</strong></td><td>Their respective workload patterns (Page IV)</td></tr>
+              <tr><td><strong>Node lifecycle</strong></td><td>Node health: marks nodes NotReady, taints them, triggers eviction</td></tr>
+              <tr><td><strong>EndpointSlice</strong></td><td>Which ready Pod IPs back each Service (Page V)</td></tr>
+              <tr><td><strong>Namespace</strong></td><td>Deletes everything in a namespace being deleted</td></tr>
+              <tr><td><strong>ServiceAccount, token</strong></td><td>Default ServiceAccounts and their credentials</td></tr>
+              <tr><td><strong>Garbage collector</strong></td><td>Dependents of deleted owners (Page II, s4)</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">☁️ cloud-controller-manager</h3>
+        <p>Controllers that need to talk to a cloud provider’s API live in a separate binary maintained by each provider:</p>
+        <ul>
+          <li><strong>Node controller</strong> — labels nodes with their zone and instance type, sets their addresses, and deletes Node objects whose VM no longer exists.</li>
+          <li><strong>Route controller</strong> — programs cloud network routes so Pod traffic can cross nodes, where the network design needs it.</li>
+          <li><strong>Service controller</strong> — creates a cloud load balancer for every Service of type <code>LoadBalancer</code>.</li>
+        </ul>
+        <p>Splitting these out lets cloud integrations ship on their own schedule, and lets bare-metal clusters run without any cloud code at all.</p>
+      </section>
+
+      <section class="card" id="s5">
+        <h2 class="sec-title">s5. kubelet &amp; kube-proxy: The Node Side</h2>
+
+        <h3 class="sub-title">🤖 kubelet</h3>
+        <p>The kubelet is the controller for its own node. Its desired state is “the Pods bound to me”; its actual state is whatever the container runtime reports. It reconciles the two continuously:</p>
+        <ul>
+          <li><strong>Runs Pods</strong> — for each assigned Pod, calls the runtime over CRI (Page I, s4) to create the Pod sandbox, pull images and start containers.</li>
+          <li><strong>Keeps them healthy</strong> — runs liveness, readiness and startup probes, and restarts containers according to the Pod’s restart policy.</li>
+          <li><strong>Reports status</strong> — writes each Pod’s phase, conditions and container states back through the <code>/status</code> subresource.</li>
+          <li><strong>Reports the node</strong> — publishes the node’s capacity and conditions (memory pressure, disk pressure), and renews a <strong>Lease</strong> object in the <code>kube-node-lease</code> namespace every few seconds as a heartbeat.</li>
+          <li><strong>Protects the node</strong> — when memory or disk runs low, evicts Pods before the kernel’s OOM killer has to.</li>
+        </ul>
+
+        <div class="note read">
+          <span class="label">STATIC PODS: HOW THE CONTROL PLANE RUNS ITSELF</span>
+          <p>The kubelet also runs any Pod manifest it finds in a local directory, usually <code>/etc/kubernetes/manifests</code>, without asking the API server. kubeadm uses this to start etcd, the API server, scheduler and controller manager as Pods on control plane nodes — solving the chicken-and-egg problem of needing an API server to schedule the API server. The kubelet publishes a read-only “mirror Pod” for each one so they still appear in <code>kubectl get pods</code>.</p>
+        </div>
+
+        <h3 class="sub-title">🔀 kube-proxy</h3>
+        <p>kube-proxy watches Services and EndpointSlices and programs the node’s kernel — with iptables, IPVS or nftables rules — so that traffic sent to a Service’s virtual IP lands on one of its backing Pods. Despite the name, in all modern modes it is not in the data path: it writes rules, and the kernel forwards packets. Some network plugins, such as Cilium, replace it entirely with eBPF programs. Page V takes this apart.</p>
+      </section>
+
+      <!-- ================================================= -->
+      <!-- MODULE II -->
+      <!-- ================================================= -->
+      <p class="module-flag">Module II — End to End</p>
+
+      <section class="card" id="s6">
+        <h2 class="sec-title">s6. Tracing kubectl apply</h2>
+        <p>Here is the Deployment from Page I followed from the moment you press enter until traffic reaches a container. No step calls another component directly; each one is triggered by a watch on an object the previous step wrote.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Step</th><th>Actor</th><th>Sees</th><th>Does</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>1</strong></td><td>kubectl</td><td>Your manifest</td><td>Sends a create or patch request over HTTPS</td></tr>
+              <tr><td><strong>2</strong></td><td>API server</td><td>The request</td><td>Authenticates, authorizes, runs admission and validation, writes the Deployment to etcd</td></tr>
+              <tr><td><strong>3</strong></td><td>Deployment controller</td><td>A new Deployment</td><td>Creates a ReplicaSet for its Pod template</td></tr>
+              <tr><td><strong>4</strong></td><td>ReplicaSet controller</td><td>A ReplicaSet wanting 3 Pods, owning 0</td><td>Creates 3 Pod objects, with no node and phase <code>Pending</code></td></tr>
+              <tr><td><strong>5</strong></td><td>Scheduler</td><td>3 unscheduled Pods</td><td>Filters and scores nodes, binds each Pod</td></tr>
+              <tr><td><strong>6</strong></td><td>kubelet</td><td>A Pod bound to its node</td><td>Over CRI: creates the Pod sandbox (the CNI plugin wires up its network), pulls the image, creates and starts the containers</td></tr>
+              <tr><td><strong>7</strong></td><td>kubelet</td><td>Containers running</td><td>Runs probes; reports the Pod <code>Running</code>, then <code>Ready</code></td></tr>
+              <tr><td><strong>8</strong></td><td>EndpointSlice controller</td><td>A ready Pod matching a Service’s selector</td><td>Adds the Pod’s IP to the Service’s EndpointSlices</td></tr>
+              <tr><td><strong>9</strong></td><td>kube-proxy (every node)</td><td>Updated EndpointSlices</td><td>Programs forwarding rules — traffic now reaches the Pod</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">🔍 Watching It Happen</h3>
+<pre><code>kubectl apply -f web.yaml
+kubectl get events --watch --sort-by=.lastTimestamp
+#   ScalingReplicaSet   deployment/web   Scaled up replica set web-7d9f6c to 3
+#   SuccessfulCreate    replicaset/...   Created pod: web-7d9f6c-x2k8p
+#   Scheduled           pod/...          Successfully assigned default/web-... to worker-2
+#   Pulling / Pulled    pod/...          Pulling image "nginx:1.27"
+#   Created / Started   pod/...          Started container nginx</code></pre>
+        <p>Each event line is written by a different actor from the table. When a Pod is stuck, the last event tells you which step stopped and therefore which component to look at.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Symptom</th><th>Stuck at step</th><th>Look at</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>No ReplicaSet or Pods appear</td><td>3–4</td><td>controller-manager; admission rejections in the ReplicaSet’s events</td></tr>
+              <tr><td>Pod <code>Pending</code>, no node assigned</td><td>5</td><td>The <code>FailedScheduling</code> event says which filter rejected every node</td></tr>
+              <tr><td><code>ContainerCreating</code> for minutes</td><td>6</td><td>kubelet events: image pull, volume mount, CNI errors</td></tr>
+              <tr><td><code>Running</code> but never <code>Ready</code></td><td>7</td><td>Readiness probe failures</td></tr>
+              <tr><td>Ready, but the Service doesn’t answer</td><td>8–9</td><td>Selector vs. labels; <code>kubectl get endpointslices</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="s7">
+        <h2 class="sec-title">s7. Failure Modes: What Breaks When</h2>
+        <p>The most important architectural property of Kubernetes is that the <strong>control plane is not in the data path</strong>. Containers are run by the node’s runtime and packets are forwarded by its kernel. The control plane only <em>changes</em> what should run. When it fails, the cluster freezes in its current shape rather than collapsing.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Component down</th><th>Running workloads</th><th>What stops working</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>All API servers</strong></td><td class="cell-ok">Keep running, keep serving</td><td class="cell-bad">Every change: kubectl, deploys, scaling, self-healing</td></tr>
+              <tr><td><strong>etcd quorum</strong></td><td class="cell-ok">Keep running, keep serving</td><td class="cell-bad">Writes fail; the cluster is frozen</td></tr>
+              <tr><td><strong>Scheduler</strong></td><td class="cell-ok">Unaffected</td><td class="cell-bad">New Pods stay <code>Pending</code></td></tr>
+              <tr><td><strong>controller-manager</strong></td><td class="cell-ok">Unaffected</td><td class="cell-bad">No self-healing: lost Pods aren’t replaced, rollouts stall, dead nodes aren’t detected</td></tr>
+              <tr><td><strong>kubelet on one node</strong></td><td class="cell-ok">Containers keep running</td><td class="cell-bad">No probes or restarts there; node marked NotReady, then its Pods are evicted</td></tr>
+              <tr><td><strong>kube-proxy on one node</strong></td><td class="cell-ok">Existing rules keep forwarding</td><td class="cell-bad">Service changes not applied there; traffic may reach Pods that have gone</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="sub-title">💀 When a Whole Node Dies</h3>
+        <p>A dead node can’t report its own death. Detection is the level-triggered pattern again: the absence of a heartbeat is the signal.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 170" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="p3d2title">
+            <title id="p3d2title">Timeline of node failure detection, tainting, eviction and replacement</title>
+            <line x1="30" y1="86" x2="610" y2="86" class="svg-ink-line" stroke-width="1.6"/>
+
+            <circle cx="40" cy="86" r="6" class="svg-write-fill svg-write-line" stroke-width="1.6"/>
+            <text x="30" y="30" class="svg-sans svg-write-text" font-size="11.5" font-weight="600">Node dies</text>
+            <text x="30" y="46" class="svg-sans svg-soft-text" font-size="10.5">Lease stops being renewed</text>
+            <text x="34" y="112" class="svg-mono svg-faint-text" font-size="10">0 s</text>
+
+            <circle cx="210" cy="86" r="6" class="svg-panel svg-ink-line" stroke-width="1.6"/>
+            <text x="160" y="124" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">Marked NotReady</text>
+            <text x="160" y="140" class="svg-sans svg-soft-text" font-size="10.5">tainted unreachable:NoExecute</text>
+            <text x="194" y="66" class="svg-mono svg-faint-text" font-size="10">~40–50 s</text>
+
+            <circle cx="450" cy="86" r="6" class="svg-panel svg-ink-line" stroke-width="1.6"/>
+            <text x="380" y="30" class="svg-sans svg-ink-text" font-size="11.5" font-weight="600">Pods evicted</text>
+            <text x="380" y="46" class="svg-sans svg-soft-text" font-size="10.5">300 s default toleration expires</text>
+            <text x="430" y="112" class="svg-mono svg-faint-text" font-size="10">+300 s</text>
+
+            <circle cx="600" cy="86" r="6" class="svg-read-fill svg-read-line" stroke-width="1.6"/>
+            <text x="615" y="124" text-anchor="end" class="svg-sans svg-read-text" font-size="11.5" font-weight="600">Replacements scheduled</text>
+            <text x="615" y="140" text-anchor="end" class="svg-sans svg-soft-text" font-size="10.5">on healthy nodes</text>
+          </svg>
+          <figcaption>By default, workloads on a dead node are replaced after roughly five to six minutes. The delay avoids churn from brief network blips.</figcaption>
+        </figure>
+
+        <ol>
+          <li>The kubelet stops renewing its Lease.</li>
+          <li>After the node-monitor grace period, the node lifecycle controller marks the node <code>NotReady</code> and adds the taint <code>node.kubernetes.io/unreachable:NoExecute</code>.</li>
+          <li>Every Pod carries a default toleration for that taint lasting 300 seconds. When it expires, the Pod is evicted — its object is deleted.</li>
+          <li>The ReplicaSet controller sees fewer Pods than desired and creates replacements; the scheduler places them on healthy nodes.</li>
+        </ol>
+
+        <div class="note write">
+          <span class="label">STATEFULSETS WAIT</span>
+          <p>A StatefulSet promises that at most one Pod with a given identity exists at a time. Since the control plane can’t tell a dead node from a partitioned one, it won’t start a replacement <code>db-0</code> while the old one might still be running. The Pod stays stuck until the node is confirmed gone — the Node object is deleted, or the node is marked out of service. Page IV covers why.</p>
+        </div>
+
+        <p>Tune the delay per workload with <code>tolerations</code> and <code>tolerationSeconds</code>: shorter for stateless services that should fail over quickly, longer for workloads that are expensive to restart.</p>
+      </section>
+
+      <section class="card" id="s8">
+        <h2 class="sec-title">s8. High Availability &amp; Leader Election</h2>
+        <p>A production control plane runs on three (or five) machines. How each component is replicated depends on whether it holds state and whether two copies could safely act at once.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Component</th><th>Replication model</th><th>Why</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><strong>etcd</strong></td><td>Raft cluster of 3 or 5</td><td>Holds state; needs a majority to agree (Page II, s5)</td></tr>
+              <tr><td><strong>kube-apiserver</strong></td><td>Active–active behind a load balancer</td><td>Stateless; any replica can serve any request</td></tr>
+              <tr><td><strong>scheduler, controller-managers</strong></td><td>Active–standby via leader election</td><td>Two active copies would make conflicting decisions — double-scheduling, duplicate Pods</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="case">
+          <div class="problem">
+            <span class="label">THE PROBLEM</span>
+            <p>Three controller-manager replicas all watching the same ReplicaSet would each see one missing Pod, and each create a replacement — three Pods instead of one.</p>
+          </div>
+          <div class="solution">
+            <span class="label">THE SOLUTION</span>
+            <p><strong>Leader election on a Lease object.</strong> Replicas race to claim a shared Lease. Only the holder runs its controllers; the others stand by and take over if the leader stops renewing it.</p>
+          </div>
+        </div>
+
+<pre><code>kubectl get lease kube-controller-manager -n kube-system -o yaml
+#   spec:
+#     holderIdentity: cp-2_6b1f…
+#     leaseDurationSeconds: 15
+#     renewTime: "2026-11-10T09:20:41.512Z"</code></pre>
+
+        <h3 class="sub-title">⏱️ How the Lease Works</h3>
+        <ul>
+          <li>The leader renews <code>renewTime</code> every couple of seconds, using a conditional update (Page II, s6), so two candidates can never both win the same round.</li>
+          <li>If the leader can’t renew within its <em>renew deadline</em>, it stops its controllers and exits — it steps down before anyone can take over.</li>
+          <li>Standbys poll the Lease. Once <code>renewTime + leaseDurationSeconds</code> has passed, they try to claim it; exactly one conditional update succeeds.</li>
+        </ul>
+
+        <div class="note read">
+          <span class="label">ONE PRIMITIVE, THREE USES</span>
+          <p>The same Lease object appears three times on this page: kubelet heartbeats, control plane leader election, and — in your own controllers — <code>controller-runtime</code>’s leader election option. A Lease is just a small object whose meaning comes entirely from a conditional write and a clock.</p>
+        </div>
+
+        <h3 class="sub-title">🏗️ Stacked vs. External etcd</h3>
+        <ul>
+          <li><strong>Stacked</strong> — each control plane node runs an etcd member alongside the API server. Fewer machines and kubeadm’s default, but losing one node loses both an API server and an etcd member.</li>
+          <li><strong>External</strong> — etcd runs on its own machines. More hardware, but control plane and storage fail independently, and etcd’s disk latency is isolated from everything else.</li>
+        </ul>
+        <p>Managed services such as EKS, GKE and AKS run all of this for you; the nodes are the only part you see. The architecture underneath is the same.</p>
+      </section>
+
+      <hr class="rule">
+
+      <footer class="doc-footer">
+        <p><a href="/engineering-notes/kubernetes/">&larr; Back to Kubernetes notes</a></p>
+      </footer>
+
+    </div>
+  </main>
+</div>
+
+<script>
+(function(){
+  // Mobile TOC toggle
+  var toggle = document.getElementById('tocToggle');
+  var inner = document.getElementById('sidebarInner');
+  if(toggle){
+    toggle.addEventListener('click', function(){
+      var open = inner.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  }
+
+  // Scrollspy
+  var links = Array.prototype.slice.call(document.querySelectorAll('[data-toc]'));
+  var sections = links.map(function(l){
+    return document.getElementById(l.getAttribute('href').slice(1));
+  }).filter(Boolean);
+
+  if('IntersectionObserver' in window && sections.length){
+    var map = {};
+    links.forEach(function(l){ map[l.getAttribute('href').slice(1)] = l; });
+
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        var link = map[entry.target.id];
+        if(!link) return;
+        if(entry.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          link.classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function(s){ observer.observe(s); });
+  }
+})();
+</script>
+
+</body>
+</html>
