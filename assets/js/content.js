@@ -69,6 +69,13 @@ export const notes = [
     date: "2026-09-18",
     tags: ["architecture", "systems design"],
   },
+  {
+    slug: "kubernetes",
+    title: "Kubernetes from First Principles",
+    blurb: "How Kubernetes actually works underneath kubectl — containers, control loops, the API and etcd, scheduling, networking, storage and security, built up from the problems each piece solves.",
+    date: "2026-11-10",
+    tags: ["kubernetes", "distributed systems", "infrastructure"],
+  }
 ];
 
 /** Trip itineraries. Each real one lives at /trips/<slug>/index.html */
